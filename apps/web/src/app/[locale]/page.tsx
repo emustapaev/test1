@@ -26,7 +26,7 @@ export default async function HomePage({ params }: { params: { locale: string } 
         <Benefits messages={messages} />
         <Examples messages={messages} />
         <Faq messages={messages} />
-        <ContactSection messages={messages} />
+        <ContactSection locale={locale} messages={messages} />
       </main>
       <Footer messages={messages} />
     </>
