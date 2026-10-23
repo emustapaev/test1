@@ -17,3 +17,25 @@ output "cloudfront_distribution_arn" {
   description = "ARN дистрибуции CloudFront"
   value       = aws_cloudfront_distribution.site.arn
 }
+
+output "acm_validation_records" {
+  description = "CNAME-записи для DNS-валидации ACM; добавить вручную в ClouDNS"
+  value = [
+    for o in aws_acm_certificate.site.domain_validation_options : {
+      domain = o.domain_name
+      name   = o.resource_record_name
+      type   = o.resource_record_type
+      value  = o.resource_record_value
+    }
+  ]
+}
+
+output "dns_records" {
+  description = "Записи для ClouDNS: CNAME/ALIAS для krunai.uz и www на домен CloudFront"
+  value = {
+    for d in local.aliases : d => {
+      type  = d == var.domain_name ? "ALIAS (или CNAME, если ClouDNS разрешает на apex)" : "CNAME"
+      value = aws_cloudfront_distribution.site.domain_name
+    }
+  }
+}

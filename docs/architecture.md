@@ -17,7 +17,7 @@ flowchart LR
     L --> DDB[(DynamoDB<br/>rate limit, TTL)]
     L --> CW[CloudWatch Logs]
     SES --> M[ernazar.mustapaev@gmail.com]
-    R53[Route 53] -.DNS.-> CF
+    DNS[ClouDNS] -.CNAME/ALIAS.-> CF
     ACM[ACM us-east-1] -.TLS.-> CF
 ```
 
@@ -33,7 +33,7 @@ flowchart LR
 | Lambda заявок (`apps/api`) | Node.js 20 (TypeScript, бандл esbuild), reserved concurrency ≤ 5. Серверная валидация, honeypot (при заполнении — 200 без отправки), проверка `locale` по allow-list (`en`|`ru`, по умолчанию `en`), rate limit, отправка письма. Ошибки валидации возвращаются кодами. Логи JSON без полного текста сообщения, email маскируется, retention 30 дней. |
 | Amazon SES (eu-west-3) | Отправка с `no-reply@krunai.uz` (DKIM/SPF/DMARC). Письмо на английском, `Reply-To` = email посетителя, в теме тег `[RU]`/`[EN]`, в теле `Language: RU|EN`. |
 | DynamoDB | Таблица rate limit (`RATE_LIMIT_TABLE`), счётчики по ключу клиента с TTL. Это serverless-хранилище без постоянных вычислений; заявки в БД не хранятся. Параметры лимита — по `docs/spec/v1-technical.md` (FR-5: throttling и reserved concurrency); пороги по умолчанию: 5 заявок с IP за 600 с (env `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`); ключ `ip#<sha256(ip)>`, TTL в `expiresAt`. |
-| ACM / Route 53 | Сертификат `krunai.uz` + `www.krunai.uz` в us-east-1 с DNS-валидацией; hosted zone `krunai.uz`. |
+| ACM / ClouDNS | Сертификат `krunai.uz` + `www.krunai.uz` в us-east-1 с DNS-валидацией. DNS остаётся в ClouDNS (Route 53 не используется): CNAME валидации и CNAME/ALIAS на CloudFront добавляются вручную по outputs `acm_validation_records` и `dns_records`. Первый apply: `terraform apply -target=aws_acm_certificate.site`, добавить CNAME, затем полный apply. |
 | CloudWatch | Логи Lambda и API GW, alarm на ошибки Lambda > 0 за 5 минут (SNS → email клиента). |
 | Terraform (`infra/terraform`) | Terraform >= 1.6, AWS provider ~> 5; state в S3 + DynamoDB lock (eu-west-3). Функция locale-router управляется в IaC вместе с distribution. |
 | GitHub Actions (`.github/workflows`) | OIDC в AWS без долгоживущих ключей. Pipeline на push в `main`: lint → typecheck → проверка ключей i18n → build → pytest → S3 sync → CloudFront invalidation. |
@@ -123,7 +123,7 @@ sequenceDiagram
 apps/web/              Next.js (статический экспорт), messages/{en,ru}.json
 apps/api/              Lambda заявок (Python 3.12) + package.json-обёртка скриптов
 infra/functions/       CloudFront Function locale-router
-infra/terraform/       Terraform (S3, CloudFront, ACM, Route 53, API GW, Lambda, SES, DynamoDB, IAM OIDC)
+infra/terraform/       Terraform (S3, CloudFront, ACM, API GW, Lambda, SES, DynamoDB, IAM OIDC)
 contracts/openapi.yaml OpenAPI контракт POST /api/lead (тикет T2)
 design/                бренд-материалы: логотип, палитра, OG-изображение
 e2e/                   Playwright E2E по статической сборке
