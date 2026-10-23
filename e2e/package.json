@@ -5,6 +5,7 @@
   "description": "Playwright E2E по задеплоенному сайту (BASE_URL, по умолчанию https://krunai.uz).",
   "scripts": {
     "test": "playwright test",
+    "test:layout": "playwright test tests/layout.spec.ts",
     "install:browsers": "playwright install chromium",
     "typecheck": "tsc --noEmit"
   },

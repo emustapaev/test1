@@ -49,6 +49,41 @@ jobs:
       - name: Build API
         run: npm run build -w apps/api
 
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+
+      - name: Layout tests (320/768/1440, EN/RU)
+        run: |
+          npx serve apps/web/out -l 4173 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+          npx --yes wait-on http://localhost:4173/en/ http://localhost:4173/ru/
+          npm run test:layout -w e2e
+        env:
+          BASE_URL: http://localhost:4173
+
+      - name: Upload layout report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-results
+          path: |
+            e2e/test-results
+            e2e/playwright-report
+          if-no-files-found: ignore
+
+      - name: Lighthouse CI
+        run: npx --yes @lhci/cli@0.14.x autorun --config=lighthouserc.json
+
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse
+          path: .lighthouseci
+          if-no-files-found: ignore
+
       - uses: hashicorp/setup-terraform@v3
 
       - name: Terraform fmt
