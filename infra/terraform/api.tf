@@ -1,97 +1,18 @@
-data "archive_file" "lead_lambda" {
-  type        = "zip"
-  source_dir  = "${path.module}/../../apps/api/dist"
-  output_path = "${path.module}/.build/lead-lambda.zip"
-}
-
-resource "aws_cloudwatch_log_group" "lead_lambda" {
-  name              = "/aws/lambda/krunai-lead-${var.environment}"
-  retention_in_days = var.log_retention_days
-}
-
 resource "aws_cloudwatch_log_group" "lead_api" {
   name              = "/aws/apigateway/krunai-lead-${var.environment}"
   retention_in_days = var.log_retention_days
 }
 
-data "aws_iam_policy_document" "lambda_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "lead_lambda" {
-  name               = "krunai-lead-lambda-${var.environment}"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-}
-
-data "aws_iam_policy_document" "lead_lambda" {
-  statement {
-    sid     = "SendEmail"
-    actions = ["ses:SendEmail"]
-    # В sandbox SES проверяет права и на identity отправителя, и на identity получателя
-    resources = [
-      aws_sesv2_email_identity.domain.arn,
-      aws_sesv2_email_identity.recipient.arn,
-    ]
-  }
-
-  statement {
-    sid       = "RateLimit"
-    actions   = ["dynamodb:UpdateItem"]
-    resources = [aws_dynamodb_table.rate_limit.arn]
-  }
-
-  statement {
-    sid       = "Logs"
-    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-    resources = ["${aws_cloudwatch_log_group.lead_lambda.arn}:*"]
-  }
-}
-
-resource "aws_iam_role_policy" "lead_lambda" {
-  name   = "lead-lambda"
-  role   = aws_iam_role.lead_lambda.id
-  policy = data.aws_iam_policy_document.lead_lambda.json
-}
-
-resource "aws_lambda_function" "lead" {
-  function_name = "krunai-lead-${var.environment}"
-  role          = aws_iam_role.lead_lambda.arn
-  runtime       = "nodejs20.x"
-  handler       = "handler.handler"
-  architectures = ["arm64"]
-  timeout       = 10
-  memory_size   = 256
-
-  filename         = data.archive_file.lead_lambda.output_path
-  source_code_hash = data.archive_file.lead_lambda.output_base64sha256
-
-  # v1: reserved concurrency ≤ 5
-  reserved_concurrent_executions = 5
-
-  environment {
-    variables = {
-      LEAD_TO_EMAIL    = var.lead_to_email
-      LEAD_FROM_EMAIL  = var.lead_from_email
-      RATE_LIMIT_TABLE = aws_dynamodb_table.rate_limit.name
-      ALLOWED_ORIGIN   = "https://${var.domain_name}"
-    }
-  }
-
-  depends_on = [
-    aws_cloudwatch_log_group.lead_lambda,
-    aws_iam_role_policy.lead_lambda,
-  ]
-}
-
 resource "aws_apigatewayv2_api" "lead" {
   name          = "krunai-lead-${var.environment}"
   protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_origins = local.allowed_origins
+    allow_methods = ["POST", "OPTIONS"]
+    allow_headers = ["content-type"]
+    max_age       = 600
+  }
 }
 
 resource "aws_apigatewayv2_integration" "lead" {
@@ -142,18 +63,4 @@ resource "aws_lambda_permission" "apigw" {
   function_name = aws_lambda_function.lead.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.lead.execution_arn}/*/*"
-}
-
-# Алярм v1: ошибки Lambda > 0 за 5 минут
-resource "aws_cloudwatch_metric_alarm" "lead_errors" {
-  alarm_name          = "krunai-lead-errors-${var.environment}"
-  namespace           = "AWS/Lambda"
-  metric_name         = "Errors"
-  dimensions          = { FunctionName = aws_lambda_function.lead.function_name }
-  statistic           = "Sum"
-  period              = 300
-  evaluation_periods  = 1
-  threshold           = 0
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
 }

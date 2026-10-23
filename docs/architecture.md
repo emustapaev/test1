@@ -147,7 +147,7 @@ docs/                  architecture.md, adr/, spec/
 | `RATE_LIMIT_TABLE` | Lambda | имя DynamoDB-таблицы rate limit |
 | `RATE_LIMIT_MAX` | Lambda | `5` |
 | `RATE_LIMIT_WINDOW_SECONDS` | Lambda | `600` |
-| `ALLOWED_ORIGIN` | Lambda | `https://krunai.uz` (www тоже допустим по v1 FR-5; список уточняется при реализации/T2) |
+| `ALLOWED_ORIGIN` | Lambda | `https://krunai.uz,https://www.krunai.uz` (CORS также задан на уровне HTTP API) |
 
 Секреты в репозитории не хранятся; AWS-доступ в CI — через OIDC.
 
@@ -211,8 +211,13 @@ docs/                  architecture.md, adr/, spec/
 
 ## 9. Terraform: API заявок (T14)
 
-- `infra/terraform/api.tf` — Lambda `handler.handler` (Node 20, архив `archive_file` из `apps/api/dist`, reserved concurrency 5), IAM-роль (`ses:SendEmail` на domain- и recipient-identity, `dynamodb:UpdateItem/GetItem` на таблицу, `logs:CreateLogStream/PutLogEvents` на свою группу), HTTP API с маршрутами `POST /api/lead` и `OPTIONS /api/lead` (throttling rate 5 / burst 10), log groups с retention 30 дней, alarm на ошибки Lambda.
+- `infra/terraform/lambda.tf` — Lambda `handler.handler` (Node 20, zip-бандл `var.lambda_package_path` = `apps/api/dist/lambda.zip`, собирается `npm run build -w apps/api`; reserved concurrency 5), IAM-роль (`ses:SendEmail` только на `ses_identity_arn` с условием `ses:FromAddress = lead_from_email`, `dynamodb:GetItem/UpdateItem` на таблицу, `logs:*` на свою группу), log group с retention 30 дней.
+- `infra/terraform/api.tf` — HTTP API с CORS (krunai.uz, www), маршруты `POST /api/lead` и `OPTIONS /api/lead`, throttling rate 5 / burst 10, access logs. `dynamodb.tf` — таблица rate limit (PK `pk`, TTL `expiresAt`). Alarm на ошибки Lambda — в `monitoring.tf` (→ SNS `alerts`).
 - `dynamodb.tf` — таблица rate limit (`pk` S, TTL `expiresAt`, on-demand).
 - `ses.tf` — domain identity `krunai.uz` (Easy DKIM) и email-identity получателя (для SES sandbox). DKIM-записи — output `ses_dkim_records`, добавляются вручную в ClouDNS.
 - `cloudfront.tf` — второй origin на HTTP API и ordered behavior `/api/*`: CachingDisabled, AllViewerExceptHostHeader, все методы (CloudFront допускает POST/OPTIONS только в полном наборе). `locale-router` привязан только к default behavior.
 - Перед `terraform plan` нужен `npm run build -w apps/api` (создаёт `apps/api/dist`).
+
+## Деплой
+
+GitHub Actions (`.github/workflows/deploy.yml`) деплоит из `main` через OIDC-роль (`infra/terraform/bootstrap`, без долгоживущих ключей): сборка → `terraform apply` → S3 sync (HTML `no-cache`, ассеты `immutable`) → инвалидация CloudFront → DNS-таблица в summary и артефакт `dns-table`. Двухэтапный запуск управляется `ENABLE_CUSTOM_DOMAIN`. Подробности: [deploy.md](deploy.md).

@@ -38,10 +38,16 @@ locals {
   }
 }
 
-variable "lead_to_email" {
-  description = "Получатель заявок (в SES sandbox должен быть верифицирован)"
+variable "lead_recipient_email" {
+  description = "Получатель заявок (FR-1); в SES sandbox должен быть верифицирован"
   type        = string
-  default     = "ernazar.mustapaev@gmail.com"
+  default     = "gulmira@krunai.uz"
+}
+
+variable "lambda_package_path" {
+  description = "Путь к zip-бандлу Lambda заявок (npm run build -w apps/api)"
+  type        = string
+  default     = "../../apps/api/dist/lambda.zip"
 }
 
 variable "lead_from_email" {
@@ -66,4 +72,15 @@ variable "lead_api_throttle_burst" {
   description = "Throttling HTTP API: burst (v1)"
   type        = number
   default     = 10
+}
+
+variable "ses_mail_from_subdomain" {
+  description = "Поддомен MAIL FROM для SES (<поддомен>.<domain_name>)"
+  type        = string
+  default     = "mail"
+}
+
+variable "alarm_email" {
+  description = "Email для алертов (SNS alerts): bounce/complaint SES"
+  type        = string
 }

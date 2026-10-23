@@ -1,0 +1,40 @@
+# Снимок публичного DNS: krunai.uz
+# Дата: 2026-10-23T14:58:55Z
+# Источник: DNS-over-HTTPS dns.google (dig не найден), формат как у dig +short
+# Только чтение. Эти записи НЕ менять (почта в Zoho).
+
+## NS (NS krunai.uz)
+hal.ns.cloudflare.com.
+naomi.ns.cloudflare.com.
+
+## MX (MX krunai.uz)
+10 mx.zoho.com.
+20 mx2.zoho.com.
+50 mx3.zoho.com.
+
+## TXT apex (TXT krunai.uz)
+v=spf1 include:zohomail.com ~all
+zoho-verification=zb69418690.zmverify.zoho.com
+
+## TXT _dmarc (TXT _dmarc.krunai.uz)
+
+## DKIM zmail TXT (TXT zmail._domainkey.krunai.uz)
+
+## DKIM zmail CNAME (CNAME zmail._domainkey.krunai.uz)
+
+## DKIM zoho TXT (TXT zoho._domainkey.krunai.uz)
+
+## DKIM zoho CNAME (CNAME zoho._domainkey.krunai.uz)
+
+## DKIM zmail2 TXT (TXT zmail2._domainkey.krunai.uz)
+
+## DKIM zmail2 CNAME (CNAME zmail2._domainkey.krunai.uz)
+
+## DKIM zmail3 TXT (TXT zmail3._domainkey.krunai.uz)
+
+## DKIM zmail3 CNAME (CNAME zmail3._domainkey.krunai.uz)
+
+## DKIM default TXT (TXT default._domainkey.krunai.uz)
+
+## DKIM default CNAME (CNAME default._domainkey.krunai.uz)
+

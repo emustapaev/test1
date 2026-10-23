@@ -5,7 +5,7 @@
   "description": "Lambda обработки заявок (Node 20, TypeScript): валидация, locale, антиспам, rate limit, SES",
   "type": "module",
   "scripts": {
-    "build": "esbuild src/handler.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/handler.js",
+    "build": "esbuild src/handler.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/handler.js && node scripts/zip.mjs",
     "lint": "tsc --noEmit",
     "test": "vitest run"
   },
