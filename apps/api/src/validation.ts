@@ -16,7 +16,8 @@ export type ValidationResult =
   | { ok: true; lead: Lead; honeypot: boolean }
   | { ok: false; fields: FieldErrors };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Без пробелов/CR/LF и без символов, которые разбирают адресные заголовки (, ; < > " ( ) [ ] \)
+const EMAIL_RE = /^[^\s@,;<>"()[\]\\]+@[^\s@,;<>"()[\]\\]+\.[^\s@,;<>"()[\]\\]+$/;
 
 function checkText(
   value: unknown,
