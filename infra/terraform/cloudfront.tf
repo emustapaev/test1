@@ -12,7 +12,7 @@ resource "aws_cloudfront_function" "locale_router" {
   runtime = "cloudfront-js-2.0"
   comment = "Locale detection for / and index.html rewrite (ADR 0003)"
   publish = true
-  code    = file("${path.module}/../functions/locale-router.js")
+  code    = replace(file("${path.module}/../functions/locale-router.js"), "var CANONICAL_HOST = 'krunai.uz';", "var CANONICAL_HOST = '${var.canonical_host}';")
 }
 
 # HTML: короткий TTL (как в v1: no-cache на стороне браузера, быстрая актуализация на edge)
@@ -109,7 +109,7 @@ resource "aws_cloudfront_distribution" "site" {
   enabled         = true
   is_ipv6_enabled = true
   comment         = "krunai.uz static site (${var.environment})"
-  aliases         = local.aliases
+  aliases         = var.enable_custom_domain ? local.aliases : []
   price_class     = "PriceClass_100"
   http_version    = "http2and3"
 
@@ -190,9 +190,11 @@ resource "aws_cloudfront_distribution" "site" {
     }
   }
 
+  # Этап 1: сертификат CloudFront по умолчанию; этап 2: ACM-сертификат для krunai.uz и www
   viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate_validation.site.certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+    cloudfront_default_certificate = var.enable_custom_domain ? null : true
+    acm_certificate_arn            = var.enable_custom_domain ? aws_acm_certificate_validation.site[0].certificate_arn : null
+    ssl_support_method             = var.enable_custom_domain ? "sni-only" : null
+    minimum_protocol_version       = var.enable_custom_domain ? "TLSv1.2_2021" : null
   }
 }

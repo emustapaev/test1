@@ -10,12 +10,16 @@ resource "aws_acm_certificate" "site" {
   }
 }
 
+# Этап 2 (enable_custom_domain = true): ждём выпуска сертификата после добавления CNAME в ClouDNS.
 resource "aws_acm_certificate_validation" "site" {
+  count    = var.enable_custom_domain ? 1 : 0
   provider = aws.us_east_1
 
   certificate_arn         = aws_acm_certificate.site.arn
   validation_record_fqdns = [for o in aws_acm_certificate.site.domain_validation_options : o.resource_record_name]
 
   # DNS живёт в ClouDNS: CNAME для валидации добавляются вручную (см. output acm_validation_records).
-  # Ресурс ждёт выпуска сертификата, пока записи не появятся в DNS.
+  timeouts {
+    create = "20m"
+  }
 }

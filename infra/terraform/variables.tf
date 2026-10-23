@@ -4,6 +4,23 @@ variable "domain_name" {
   default     = "krunai.uz"
 }
 
+variable "enable_custom_domain" {
+  description = "Этап 2: привязать krunai.uz/www (ждёт валидацию ACM, aliases, ACM-сертификат). Этап 1 (false): сертификат CloudFront по умолчанию, без aliases"
+  type        = bool
+  default     = false
+}
+
+variable "canonical_host" {
+  description = "Канонический хост, на который locale-router делает 301 (www.krunai.uz — fallback при отсутствии ALIAS в ClouDNS)"
+  type        = string
+  default     = "krunai.uz"
+
+  validation {
+    condition     = contains(["krunai.uz", "www.krunai.uz"], var.canonical_host)
+    error_message = "canonical_host должен быть krunai.uz или www.krunai.uz."
+  }
+}
+
 variable "environment" {
   description = "Имя окружения (prod, staging, ...)"
   type        = string

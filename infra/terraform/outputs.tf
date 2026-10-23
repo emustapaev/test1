@@ -19,25 +19,30 @@ output "cloudfront_distribution_arn" {
 }
 
 output "acm_validation_records" {
-  description = "CNAME-записи для DNS-валидации ACM; добавить вручную в ClouDNS"
+  description = "CNAME-записи для DNS-валидации ACM (FQDN); добавить вручную в ClouDNS на этапе 1"
   value = [
     for o in aws_acm_certificate.site.domain_validation_options : {
-      domain = o.domain_name
-      name   = o.resource_record_name
-      type   = o.resource_record_type
-      value  = o.resource_record_value
+      name  = o.resource_record_name
+      type  = o.resource_record_type
+      value = o.resource_record_value
     }
   ]
 }
 
 output "dns_records" {
-  description = "Записи для ClouDNS: CNAME/ALIAS для krunai.uz и www на домен CloudFront"
-  value = {
-    for d in local.aliases : d => {
-      type  = d == var.domain_name ? "ALIAS (или CNAME, если ClouDNS разрешает на apex)" : "CNAME"
+  description = "Записи для ClouDNS: apex ALIAS и www CNAME на дистрибуцию CloudFront. Если ALIAS недоступен — fallback: канонический хост www.krunai.uz (canonical_host), apex — редирект/ANAME у регистратора"
+  value = [
+    {
+      name  = "${var.domain_name}."
+      type  = "ALIAS"
       value = aws_cloudfront_distribution.site.domain_name
-    }
-  }
+    },
+    {
+      name  = "${local.www_domain_name}."
+      type  = "CNAME"
+      value = aws_cloudfront_distribution.site.domain_name
+    },
+  ]
 }
 
 output "lead_api_endpoint" {
