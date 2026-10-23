@@ -1,0 +1,6 @@
+{
+  "name": "@krunai/e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Playwright E2E по статической сборке. Каркас: тесты добавляются отдельным тикетом."
+}
