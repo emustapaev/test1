@@ -1,0 +1,178 @@
+openapi: 3.1.0
+info:
+  title: krunai.uz Lead API
+  version: 1.0.0
+  description: |
+    Lead form endpoint for krunai.uz. The server never returns localized or
+    human-readable messages: errors are machine-readable codes, and the
+    frontend maps them to localized text (see docs/architecture.md).
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: https://krunai.uz
+    description: Production (API proxied by CloudFront under /api/*)
+tags:
+  - name: lead
+    description: Lead form submission
+paths:
+  /api/lead:
+    post:
+      tags: [lead]
+      operationId: createLead
+      security: []
+      summary: Submit a lead form
+      description: |
+        Validates the payload and sends a notification email. If the honeypot
+        field `website` is non-empty, the server returns 200 and sends nothing
+        (silent success). Rate limiting and anti-spam rules are unchanged from v1.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadRequest'
+            examples:
+              ru:
+                summary: Valid request from the RU page
+                value:
+                  name: Ivan
+                  email: ivan@example.com
+                  message: Hello, I would like to discuss a project.
+                  locale: ru
+                  website: ''
+      responses:
+        '200':
+          description: Lead accepted (also returned when the honeypot is filled).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+              examples:
+                ok:
+                  value:
+                    ok: true
+        '400':
+          description: Malformed JSON or validation failure.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+                  - $ref: '#/components/schemas/BadRequestResponse'
+              examples:
+                validation:
+                  summary: Field validation failed
+                  value:
+                    error: validation_error
+                    fields:
+                      email: invalid_format
+                      message: required
+                badLocale:
+                  summary: Locale outside the allow-list
+                  value:
+                    error: validation_error
+                    fields:
+                      locale: invalid_value
+                badJson:
+                  summary: Body is not valid JSON
+                  value:
+                    error: bad_request
+        '429':
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitedResponse'
+              examples:
+                rateLimited:
+                  value:
+                    error: rate_limited
+        '500':
+          description: Unexpected server failure (including email delivery failure).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalErrorResponse'
+              examples:
+                internal:
+                  value:
+                    error: internal_error
+components:
+  schemas:
+    LeadRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, message]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        message:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        locale:
+          description: |
+            Optional, defaults to `en` when omitted. A value outside the
+            allow-list is rejected with `fields.locale = invalid_value`
+            (so the schema here is a string; the server enforces the list).
+          type: string
+          default: en
+          examples: [en, ru]
+          x-allowed-values: [en, ru]
+        website:
+          type: string
+          description: Honeypot. Must be empty; real users never see it.
+          default: ''
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          const: true
+    FieldErrorCode:
+      type: string
+      description: Per-field validation error code.
+      enum: [required, invalid_format, too_short, too_long, invalid_value]
+    ValidationErrorResponse:
+      type: object
+      required: [error, fields]
+      properties:
+        error:
+          type: string
+          const: validation_error
+        fields:
+          type: object
+          description: Map of invalid field name to error code.
+          minProperties: 1
+          propertyNames:
+            enum: [name, email, message, locale]
+          additionalProperties:
+            $ref: '#/components/schemas/FieldErrorCode'
+    BadRequestResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: bad_request
+    RateLimitedResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: rate_limited
+    InternalErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: internal_error
