@@ -150,7 +150,7 @@ docs/                  architecture.md, adr/, spec/
 
 ## 6. i18n и SEO
 
-- Локали: `en` (default/fallback), `ru`. Сообщения: `apps/web/messages/{en,ru}.json`, список локалей — единый модуль `apps/web/src/i18n/locales.ts` (ADR 0002).
+- Локали: `en` (default/fallback), `ru`. Сообщения: `apps/web/messages/{en,ru}.json`, список локалей — единый модуль `apps/web/src/i18n/config.ts` (ADR 0002).
 - CI-проверка: ключи `en` и `ru` совпадают, иначе сборка падает.
 - На каждой странице: `<html lang>`, canonical, `hreflang` en/ru/x-default (→ `/en/`), `og:locale` (`en_US`/`ru_RU`) + `og:locale:alternate`; `sitemap.xml` с обеими локалями и alternates.
 - Шрифты с кириллицей; вёрстка выдерживает длинные RU-строки при 320 px.
@@ -160,7 +160,7 @@ docs/                  architecture.md, adr/, spec/
 Например, `uz`:
 
 1. Создать `apps/web/messages/uz.json` с тем же набором ключей, что в `en.json`.
-2. Добавить `uz` в список локалей `apps/web/src/i18n/locales.ts` (и в маппинг `og:locale`, например `uz_UZ`). Страницы `/uz/`, `/uz/404/`, hreflang и sitemap генерируются из этого списка (`generateStaticParams`).
+2. Добавить `uz` в список локалей `apps/web/src/i18n/config.ts` (и в маппинг `og:locale`, например `uz_UZ`). Страницы `/uz/`, `/uz/404/`, hreflang и sitemap генерируются из этого списка (`generateStaticParams`).
 3. Если локаль должна определяться автоматически — добавить её в список поддерживаемых в `infra/functions/locale-router` (ADR 0003) и в allow-list `locale` в `apps/api` и `contracts/openapi.yaml`.
 4. Добавить локализованный текст 404 и обновить E2E.
 5. Прогнать `npm run lint && npm run build` (проверка ключей) и задеплоить.

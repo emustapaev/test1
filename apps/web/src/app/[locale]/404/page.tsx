@@ -1,0 +1,16 @@
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { isLocale, locales, type Locale } from '@/i18n/config';
+import { getMessages, type Messages } from '@/i18n/getMessages';
+import NotFoundContent from '@/components/NotFoundContent';
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+
+export default async function LocaleNotFoundPage({ params }: { params: { locale: string } }) {
+  if (!isLocale(params.locale)) notFound();
+  const entries = await Promise.all(
+    locales.map(async (l) => [l, (await getMessages(l)).notFound] as const),
+  );
+  const texts = Object.fromEntries(entries) as Record<Locale, Messages['notFound']>;
+  return <NotFoundContent initialLocale={params.locale} texts={texts} />;
+}
