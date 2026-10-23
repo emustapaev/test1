@@ -32,3 +32,4 @@ crash.log
 .DS_Store
 .idea/
 .vscode/
+infra/terraform/backend.hcl

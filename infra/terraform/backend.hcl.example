@@ -1,0 +1,6 @@
+# Скопируйте в backend.hcl (не коммитится) и подставьте свои значения.
+bucket         = "krunai-terraform-state"
+key            = "site/terraform.tfstate"
+region         = "eu-west-3"
+dynamodb_table = "krunai-terraform-locks"
+encrypt        = true
