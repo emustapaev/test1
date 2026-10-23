@@ -79,3 +79,45 @@ node scripts/dns/render-table.mjs /tmp/outputs.json --baseline docs/dns/baseline
 ## 6. Проверка
 
 После внесения записей: `dig +short CNAME <имя>.krunai.uz` должен вернуть значение из таблицы. Полные проверки после применения выполняются отдельно.
+
+## 7. Проверка после применения
+
+Выполняется после добавления всех записей и этапа 2 (раздел 4).
+
+### 7.1. Автоматическая проверка
+
+```bash
+cd infra/terraform && terraform output -json > ../../tf-outputs.json && cd ../..
+bash scripts/dns/verify.sh --domain krunai.uz --canonical krunai.uz \
+  --outputs tf-outputs.json --baseline docs/dns/baseline.txt
+```
+
+Если канонический адрес — `www`, укажите `--canonical www.krunai.uz`. Скрипт только читает (dig, curl, jq, aws cli) и выводит PASS/FAIL по каждому пункту; при любом FAIL код возврата ненулевой. Проверки SES через `aws sesv2` выполняются, если есть AWS-креденшелы (иначе SKIP; отключить: `--skip-aws`).
+
+| Что проверяет скрипт | Критерий |
+|---|---|
+| MX, TXT apex (SPF), `_dmarc` совпадают с `docs/dns/baseline.txt` | FR-2 |
+| 3 DKIM CNAME SES и MAIL FROM MX/TXT резолвятся в значения из outputs | FR-2 |
+| `https://` обоих хостов отвечает с валидным сертификатом; неканонический → 301 на канонический | FR-3 |
+| `http://` → 301 на `https://` | FR-3 |
+| SES: VerifiedForSendingStatus = true, DKIM = SUCCESS, MAIL FROM = SUCCESS | FR-2 |
+
+### 7.2. Ручной чек-лист (FR-1, FR-2)
+
+1. Откройте `https://krunai.uz/en/` и отправьте тестовую заявку (имя «Тест EN», свой email посетителя, любое сообщение).
+2. Откройте `https://krunai.uz/ru/` и отправьте тестовую заявку (имя «Тест RU», другой email посетителя).
+3. Дождитесь письма (до нескольких минут). Во входящих `gulmira@krunai.uz` (Zoho) должно быть **два** письма от `noreply@krunai.uz`.
+4. Письма во **Входящих**, не в «Спаме». Если в спаме — FR-1 не выполнен, сообщите разработчикам.
+5. В каждом письме откройте «Показать оригинал / заголовки» и проверьте `Authentication-Results`:
+   - `dkim=pass header.d=krunai.uz`;
+   - `dmarc=pass`.
+6. `Reply-To` равен email посетителя из формы (нажмите «Ответить» — в адресате должен быть этот email).
+7. В теле письма указан язык заявки: `Language: EN` для `/en/` и `Language: RU` для `/ru/`.
+8. Письмо не приходит на `ernazar.mustapaev@gmail.com` (старый получатель удалён).
+9. Повторите `bash scripts/dns/snapshot.sh krunai.uz /tmp/after.txt` и сравните с baseline: `diff <(grep -v '^# Дата' docs/dns/baseline.txt) <(grep -v '^# Дата' /tmp/after.txt)` — MX, SPF, DMARC, DKIM Zoho без изменений.
+
+| Критерий | Шаги |
+|---|---|
+| FR-1: доставка EN/RU, не спам, Reply-To, язык | 1–4, 6–8 |
+| FR-2: Verified/DKIM/MAIL FROM, `dkim=pass`, `dmarc=pass`, Zoho DNS не изменён | 7.1, 5, 9 |
+| FR-3: HTTPS с валидным сертификатом, 301, http → https | 7.1 |
