@@ -2,5 +2,15 @@
   "name": "@krunai/e2e",
   "private": true,
   "version": "0.0.0",
-  "description": "Playwright E2E по статической сборке. Каркас: тесты добавляются отдельным тикетом."
+  "description": "Playwright E2E по задеплоенному сайту (BASE_URL, по умолчанию https://krunai.uz).",
+  "scripts": {
+    "test": "playwright test",
+    "install:browsers": "playwright install chromium",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.6.0"
+  }
 }
