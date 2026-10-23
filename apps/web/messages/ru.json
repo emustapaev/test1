@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "title": "KRunAI — ИИ-автоматизация для бизнеса",
+    "description": "KRunAI создаёт ИИ-ассистентов и автоматизацию для бизнеса."
+  },
+  "nav": {
+    "howItWorks": "Как это работает",
+    "benefits": "Преимущества",
+    "examples": "Примеры",
+    "faq": "Вопросы и ответы",
+    "contact": "Связаться"
+  },
+  "switcher": {
+    "label": "Язык",
+    "en": "EN",
+    "ru": "RU"
+  },
+  "hero": {
+    "title": "",
+    "subtitle": "",
+    "cta": ""
+  },
+  "howItWorks": { "title": "" },
+  "benefits": { "title": "" },
+  "examples": { "title": "" },
+  "faq": { "title": "" },
+  "contact": { "title": "" },
+  "form": {
+    "name": "Имя",
+    "email": "Эл. почта",
+    "message": "Сообщение",
+    "submit": "Отправить",
+    "success": "Спасибо! Мы скоро свяжемся с вами.",
+    "errors": {
+      "required": "Заполните это поле.",
+      "invalidEmail": "Введите корректный адрес эл. почты.",
+      "rateLimited": "Слишком много запросов. Попробуйте позже.",
+      "server": "Что-то пошло не так. Попробуйте ещё раз."
+    }
+  },
+  "footer": {
+    "copyright": "© KRunAI"
+  },
+  "notFound": {
+    "title": "Страница не найдена",
+    "description": "Такой страницы не существует.",
+    "home": "На главную"
+  }
+}

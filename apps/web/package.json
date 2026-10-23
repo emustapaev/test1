@@ -2,5 +2,26 @@
   "name": "@krunai/web",
   "private": true,
   "version": "0.0.0",
-  "description": "Next.js 14 (App Router, output: 'export'). Каркас: приложение добавляется отдельным тикетом."
+  "description": "Next.js 14 (App Router, output: 'export'), статические локали /en/ и /ru/.",
+  "scripts": {
+    "dev": "next dev",
+    "prebuild": "npm run check:i18n",
+    "build": "next build",
+    "lint": "npm run check:i18n && next lint",
+    "typecheck": "tsc --noEmit",
+    "check:i18n": "node scripts/check-i18n.mjs"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0",
+    "typescript": "^5.4.0"
+  }
 }
