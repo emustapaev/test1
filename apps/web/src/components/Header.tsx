@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Locale } from '@/i18n/config';
 import type { Messages } from '@/i18n/getMessages';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 const links = [
   ['how-it-works', 'howItWorks'],
@@ -32,7 +33,9 @@ export function Header({
           <i />
           <span>{header.menu}</span>
         </label>
-        <div className="lang-slot">{languageSwitcher}</div>
+        <div className="lang-slot">
+          {languageSwitcher ?? <LanguageSwitcher currentLocale={locale} labels={messages.switcher} />}
+        </div>
         <nav className="site-nav" aria-label={header.mainNav}>
           <ul>
             {links.map(([id, key]) => (
