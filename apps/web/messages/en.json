@@ -1,7 +1,10 @@
 {
   "meta": {
     "title": "KRunAI — AI automation for business",
-    "description": "KRunAI builds AI assistants and automations for businesses."
+    "description": "KRunAI builds AI assistants and automations for businesses.",
+    "ogTitle": "KRunAI — AI automation for business",
+    "ogDescription": "KRunAI builds AI assistants and automations for businesses.",
+    "ogImageAlt": "KRunAI logo and AI automation illustration"
   },
   "nav": {
     "howItWorks": "How it works",
