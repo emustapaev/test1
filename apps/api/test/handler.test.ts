@@ -136,4 +136,13 @@ describe('handler', () => {
     for (const s of ['Ivan', 'ivan@example.com', 'Hello, I want', '1.2.3.4']) expect(logs).not.toContain(s);
     expect(logs).toContain('req-1');
   });
+
+  it.each(['a@b.co,evil@x.com', 'a@b.co;evil@x.com', 'Evil <a@b.co>', 'a@b.co\r\nBcc: x@y.zz', '"a b"@x.com'])(
+    'rejects address-header injection in email: %j',
+    async (email) => {
+      const r = await call(ev({ ...valid, email }));
+      expect(r.status).toBe(400);
+      expect(ses.commandCalls(SendEmailCommand)).toHaveLength(0);
+    },
+  );
 });
