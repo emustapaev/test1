@@ -12,6 +12,11 @@ describe('email', () => {
     expect(buildSubject(lead('en'))).toBe('[EN] New lead from krunai.uz: Ivan');
     expect(buildBody(lead('en'))).toContain('Language: EN');
   });
+  it('strips all control characters and line separators from the subject', () => {
+    expect(buildSubject({ ...lead('en'), name: 'a\u0000b\u000bc\u0085d\u2028e\tf' })).toBe(
+      '[EN] New lead from krunai.uz: a b c d e f',
+    );
+  });
   it('strips newlines from the subject', () => {
     expect(buildSubject({ ...lead('en'), name: 'a\r\nBcc: x' })).not.toMatch(/[\r\n]/);
   });

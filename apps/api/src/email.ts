@@ -5,7 +5,7 @@ const client = new SESv2Client({});
 
 export function buildSubject(lead: Lead): string {
   // v1 subject: "New lead from krunai.uz: {name}" prefixed with the locale tag.
-  const name = lead.name.replace(/[\r\n]+/g, ' ');
+  const name = lead.name.replace(/[\p{Cc}\u2028\u2029]+/gu, ' ').trim();
   return `[${lead.locale.toUpperCase()}] New lead from krunai.uz: ${name}`;
 }
 

@@ -42,7 +42,7 @@ data "aws_iam_policy_document" "lead_lambda" {
 
   statement {
     sid       = "RateLimit"
-    actions   = ["dynamodb:UpdateItem", "dynamodb:GetItem"]
+    actions   = ["dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.rate_limit.arn]
   }
 
