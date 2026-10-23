@@ -33,11 +33,7 @@ data "aws_iam_policy_document" "lead_lambda" {
   statement {
     sid     = "SendEmail"
     actions = ["ses:SendEmail"]
-    # В sandbox SES проверяет права и на identity отправителя, и на identity получателя
-    resources = [
-      aws_sesv2_email_identity.domain.arn,
-      aws_sesv2_email_identity.recipient.arn,
-    ]
+    resources = [aws_sesv2_email_identity.domain.arn]
   }
 
   statement {

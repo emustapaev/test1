@@ -67,3 +67,14 @@ variable "lead_api_throttle_burst" {
   type        = number
   default     = 10
 }
+
+variable "ses_mail_from_subdomain" {
+  description = "Поддомен MAIL FROM для SES (<поддомен>.<domain_name>)"
+  type        = string
+  default     = "mail"
+}
+
+variable "alarm_email" {
+  description = "Email для алертов (SNS alerts): bounce/complaint SES"
+  type        = string
+}
