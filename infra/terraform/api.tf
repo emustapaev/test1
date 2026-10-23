@@ -31,8 +31,8 @@ resource "aws_iam_role" "lead_lambda" {
 
 data "aws_iam_policy_document" "lead_lambda" {
   statement {
-    sid     = "SendEmail"
-    actions = ["ses:SendEmail"]
+    sid       = "SendEmail"
+    actions   = ["ses:SendEmail"]
     resources = [aws_sesv2_email_identity.domain.arn]
   }
 
