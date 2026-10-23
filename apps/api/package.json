@@ -1,0 +1,7 @@
+{
+  "name": "@krunai/api",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Lambda обработки заявок (Python 3.12). package.json нужен только как обёртка скриптов lint/test для npm workspaces.",
+  "scripts": {}
+}

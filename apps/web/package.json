@@ -1,0 +1,6 @@
+{
+  "name": "@krunai/web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Next.js 14 (App Router, output: 'export'). Каркас: приложение добавляется отдельным тикетом."
+}

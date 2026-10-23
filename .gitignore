@@ -1,0 +1,34 @@
+node_modules/
+.next/
+out/
+coverage/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Playwright
+e2e/test-results/
+e2e/playwright-report/
+
+# Python (Lambda)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+.DS_Store
+.idea/
+.vscode/

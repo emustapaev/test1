@@ -1,0 +1,13 @@
+{
+  "name": "krunai-uz",
+  "private": true,
+  "version": "0.0.0",
+  "description": "krunai.uz: статический лендинг (EN/RU) на S3 + CloudFront, форма заявки на Lambda + SES",
+  "engines": { "node": ">=20" },
+  "workspaces": ["apps/web", "apps/api", "e2e"],
+  "scripts": {
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  }
+}
