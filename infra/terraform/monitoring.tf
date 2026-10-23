@@ -35,3 +35,18 @@ resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
   treat_missing_data  = "notBreaching"
   alarm_actions       = [aws_sns_topic.alerts.arn]
 }
+
+resource "aws_cloudwatch_metric_alarm" "lead_errors" {
+  alarm_name          = "krunai-lead-errors-${var.environment}"
+  alarm_description   = "Lambda заявок: Errors > 0 за 5 минут"
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.lead.function_name }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+}
