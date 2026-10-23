@@ -33,3 +33,4 @@ crash.log
 .idea/
 .vscode/
 infra/terraform/backend.hcl
+infra/terraform/.build/

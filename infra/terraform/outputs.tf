@@ -39,3 +39,24 @@ output "dns_records" {
     }
   }
 }
+
+output "lead_api_endpoint" {
+  description = "Базовый URL HTTP API заявок (прямой, в обход CloudFront)"
+  value       = aws_apigatewayv2_api.lead.api_endpoint
+}
+
+output "lead_lambda_name" {
+  description = "Имя Lambda-функции обработки заявок"
+  value       = aws_lambda_function.lead.function_name
+}
+
+output "ses_dkim_records" {
+  description = "DKIM CNAME для SES; добавить вручную в ClouDNS"
+  value = [
+    for t in aws_sesv2_email_identity.domain.dkim_signing_attributes[0].tokens : {
+      name  = "${t}._domainkey.${var.domain_name}"
+      type  = "CNAME"
+      value = "${t}.dkim.amazonses.com"
+    }
+  ]
+}
