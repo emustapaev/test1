@@ -1,6 +1,9 @@
 // CloudFront Function (cloudfront-js-2.0), viewer-request. См. docs/adr/0003-edge-locale-detection.md
 var SUPPORTED = ['en', 'ru'];
 var DEFAULT = 'en';
+// Terraform подменяет значение через replace() — сохраняйте формат строки.
+var CANONICAL_HOST = 'krunai.uz';
+var SITE_HOSTS = ['krunai.uz', 'www.krunai.uz'];
 
 function pickFromCookie(request) {
   var c = request.cookies && request.cookies.lang;
@@ -54,6 +57,20 @@ function buildQuery(qs) {
 function handler(event) {
   var request = event.request;
   var uri = request.uri;
+
+  // Редирект на канонический хост (только для хостов сайта; *.cloudfront.net не трогаем).
+  var hostHeader = request.headers && request.headers.host;
+  var host = hostHeader && hostHeader.value ? hostHeader.value.toLowerCase() : '';
+  if (SITE_HOSTS.indexOf(host) !== -1 && host !== CANONICAL_HOST) {
+    return {
+      statusCode: 301,
+      statusDescription: 'Moved Permanently',
+      headers: {
+        location: { value: 'https://' + CANONICAL_HOST + uri + buildQuery(request.querystring || {}) },
+        'cache-control': { value: 'max-age=3600' }
+      }
+    };
+  }
 
   if (uri === '/') {
     var lang = pickFromCookie(request) || pickFromAcceptLanguage(request) || DEFAULT;
