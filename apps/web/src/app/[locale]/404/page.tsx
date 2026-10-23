@@ -4,7 +4,10 @@ import { isLocale, locales, type Locale } from '@/i18n/config';
 import { getMessages, type Messages } from '@/i18n/getMessages';
 import NotFoundContent from '@/components/NotFoundContent';
 
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+  alternates: {},
+};
 
 export default async function LocaleNotFoundPage({ params }: { params: { locale: string } }) {
   if (!isLocale(params.locale)) notFound();
