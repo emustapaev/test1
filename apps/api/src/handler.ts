@@ -1,7 +1,7 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { validateLead } from './validation';
 import { checkRateLimit } from './rateLimit';
-import { sendLeadEmail } from './email';
+import { sendLeadEmail, getEmailConfig } from './email';
 
 function respond(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return {
@@ -58,6 +58,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     return respond(400, { error: 'validation_error', fields: result.fields });
   }
   const { lead } = result;
+
+  if (!getEmailConfig()) {
+    console.error(JSON.stringify({ event: 'lead_email_config_error', requestId }));
+    log(requestId, 'internal_error', lead.locale, { errorName: 'ConfigError' });
+    return respond(500, { error: 'internal_error' });
+  }
 
   try {
     if (!(await checkRateLimit(clientIp(event)))) {

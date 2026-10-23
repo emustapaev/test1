@@ -28,7 +28,7 @@ beforeEach(() => {
   ddb.reset();
   ses.on(SendEmailCommand).resolves({});
   ddb.on(UpdateItemCommand).resolves({ Attributes: { count: { N: '1' } } });
-  process.env.LEAD_TO_EMAIL = 'to@example.com';
+  process.env.LEAD_RECIPIENT_EMAIL = 'to@example.com';
   process.env.LEAD_FROM_EMAIL = 'noreply@krunai.uz';
   process.env.RATE_LIMIT_TABLE = 'rl';
   logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -43,6 +43,39 @@ describe('handler', () => {
     expect(input.Content?.Simple?.Subject?.Data).toMatch(/^\[RU\] /);
     expect(input.Content?.Simple?.Body?.Text?.Data).toContain('Language: RU');
     expect(input.Destination?.ToAddresses).toEqual(['to@example.com']);
+    expect(input.FromEmailAddress).toBe('noreply@krunai.uz');
+    expect(input.ReplyToAddresses).toEqual(['ivan@example.com']);
+  });
+
+  it('recipient is never taken from the request', async () => {
+    const r = await call(ev({ ...valid, to: 'evil@example.com', recipient: 'evil@example.com', ToAddresses: ['evil@example.com'] }));
+    expect(r.status).toBe(200);
+    const input = ses.commandCalls(SendEmailCommand)[0].args[0].input;
+    expect(input.Destination?.ToAddresses).toEqual(['to@example.com']);
+    expect(JSON.stringify(input)).not.toContain('evil@example.com');
+  });
+
+  it.each(['LEAD_RECIPIENT_EMAIL', 'LEAD_FROM_EMAIL'])('missing %s -> 500 internal_error, SES not called', async (name) => {
+    delete process.env[name];
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await call(ev(valid))).toEqual({ status: 500, json: { error: 'internal_error' } });
+    expect(ses.commandCalls(SendEmailCommand)).toHaveLength(0);
+    expect(String(errSpy.mock.calls[0][0])).toContain('lead_email_config_error');
+    errSpy.mockRestore();
+  });
+
+  it('send result logs: sent with messageId, failed with errorName, no PII', async () => {
+    ses.on(SendEmailCommand).resolves({ MessageId: 'mid-1' });
+    await call(ev({ ...valid, locale: 'ru' }));
+    ses.on(SendEmailCommand).rejects(new Error('boom ivan@example.com'));
+    await call(ev(valid));
+    const lines = logSpy.mock.calls.map((c) => String(c[0]));
+    const sent = JSON.parse(lines.find((l) => l.includes('lead_email_sent'))!);
+    expect(sent).toEqual({ event: 'lead_email_sent', messageId: 'mid-1', locale: 'ru', emailDomain: 'example.com' });
+    const failed = JSON.parse(lines.find((l) => l.includes('lead_email_failed'))!);
+    expect(failed).toEqual({ event: 'lead_email_failed', errorName: 'Error', locale: 'en', emailDomain: 'example.com' });
+    const all = lines.join('\n');
+    for (const s of ['Ivan', 'ivan@example.com', 'Hello, I want']) expect(all).not.toContain(s);
   });
 
   it('locale defaults to en', async () => {
