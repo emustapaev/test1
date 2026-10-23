@@ -173,3 +173,11 @@ docs/                  architecture.md, adr/, spec/
 - Lighthouse (mobile) ≥ 90 по всем категориям в обеих локалях; нет overflow на 320/768/1440 px.
 - S3 не публичен; HSTS, CSP, TLS 1.2+.
 - Вне рамок: другие локали, CMS для переводов, локализованные письма владельцу, аналитика, БД лидов.
+
+## 9. Terraform: API заявок (T14)
+
+- `infra/terraform/api.tf` — Lambda `handler.handler` (Node 20, архив `archive_file` из `apps/api/dist`, reserved concurrency 5), IAM-роль (`ses:SendEmail` на domain- и recipient-identity, `dynamodb:UpdateItem/GetItem` на таблицу, `logs:CreateLogStream/PutLogEvents` на свою группу), HTTP API с маршрутами `POST /api/lead` и `OPTIONS /api/lead` (throttling rate 5 / burst 10), log groups с retention 30 дней, alarm на ошибки Lambda.
+- `dynamodb.tf` — таблица rate limit (`pk` S, TTL `expiresAt`, on-demand).
+- `ses.tf` — domain identity `krunai.uz` (Easy DKIM) и email-identity получателя (для SES sandbox). DKIM-записи — output `ses_dkim_records`, добавляются вручную в ClouDNS.
+- `cloudfront.tf` — второй origin на HTTP API и ordered behavior `/api/*`: CachingDisabled, AllViewerExceptHostHeader, все методы (CloudFront допускает POST/OPTIONS только в полном наборе). `locale-router` привязан только к default behavior.
+- Перед `terraform plan` нужен `npm run build -w apps/api` (создаёт `apps/api/dist`).

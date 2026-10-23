@@ -93,7 +93,16 @@ resource "aws_cloudfront_response_headers_policy" "security" {
 }
 
 locals {
-  s3_origin_id = "site-s3"
+  s3_origin_id  = "site-s3"
+  api_origin_id = "lead-api"
+}
+
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
+  name = "Managed-AllViewerExceptHostHeader"
 }
 
 resource "aws_cloudfront_distribution" "site" {
@@ -108,6 +117,18 @@ resource "aws_cloudfront_distribution" "site" {
     domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
     origin_id                = local.s3_origin_id
     origin_access_control_id = aws_cloudfront_origin_access_control.site.id
+  }
+
+  origin {
+    domain_name = trimprefix(aws_apigatewayv2_api.lead.api_endpoint, "https://")
+    origin_id   = local.api_origin_id
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
   }
 
   default_cache_behavior {
@@ -136,7 +157,17 @@ resource "aws_cloudfront_distribution" "site" {
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
   }
 
-  # Точка расширения для T14: сюда добавится origin API и ordered_cache_behavior "/api/*".
+  # API заявок: без кэша, без locale-router (function_association не задан намеренно)
+  ordered_cache_behavior {
+    path_pattern             = "/api/*"
+    target_origin_id         = local.api_origin_id
+    viewer_protocol_policy   = "https-only"
+    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods           = ["GET", "HEAD"]
+    compress                 = true
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+  }
 
   # ADR 0002: единая локализованная 404 (S3 за OAC без ListBucket отдаёт 403 для отсутствующих ключей)
   custom_error_response {
