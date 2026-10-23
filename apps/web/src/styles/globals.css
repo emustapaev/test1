@@ -1,0 +1,40 @@
+@import "../../../../design/tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--kr-color-bg);
+  color: var(--kr-color-text);
+  font-family: var(--kr-font-body);
+  overflow-wrap: break-word;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--kr-font-heading);
+}
+
+a {
+  color: var(--kr-color-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--kr-color-focus);
+  outline-offset: 2px;
+}
+
+/* Шрифты подключает next/font/local (src/app/fonts.ts); токены берут их family. */
+:root {
+  --kr-font-body: var(--font-inter), system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --kr-font-heading: var(--font-manrope), var(--font-inter), system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+}
