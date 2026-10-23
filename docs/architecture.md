@@ -217,3 +217,7 @@ docs/                  architecture.md, adr/, spec/
 - `ses.tf` — domain identity `krunai.uz` (Easy DKIM) и email-identity получателя (для SES sandbox). DKIM-записи — output `ses_dkim_records`, добавляются вручную в ClouDNS.
 - `cloudfront.tf` — второй origin на HTTP API и ordered behavior `/api/*`: CachingDisabled, AllViewerExceptHostHeader, все методы (CloudFront допускает POST/OPTIONS только в полном наборе). `locale-router` привязан только к default behavior.
 - Перед `terraform plan` нужен `npm run build -w apps/api` (создаёт `apps/api/dist`).
+
+## Деплой
+
+GitHub Actions (`.github/workflows/deploy.yml`) деплоит из `main` через OIDC-роль (`infra/terraform/bootstrap`, без долгоживущих ключей): сборка → `terraform apply` → S3 sync (HTML `no-cache`, ассеты `immutable`) → инвалидация CloudFront → DNS-таблица в summary и артефакт `dns-table`. Двухэтапный запуск управляется `ENABLE_CUSTOM_DOMAIN`. Подробности: [deploy.md](deploy.md).
