@@ -34,3 +34,4 @@ crash.log
 .vscode/
 infra/terraform/backend.hcl
 infra/terraform/.build/
+.lighthouseci
