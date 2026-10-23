@@ -65,3 +65,29 @@ output "ses_dkim_records" {
     }
   ]
 }
+
+output "ses_mail_from_records" {
+  description = "MX и TXT (SPF) для MAIL FROM-поддомена SES; добавить вручную в ClouDNS"
+  value = [
+    {
+      name  = aws_sesv2_email_identity_mail_from_attributes.domain.mail_from_domain
+      type  = "MX"
+      value = "10 feedback-smtp.${data.aws_region.current.name}.amazonses.com"
+    },
+    {
+      name  = aws_sesv2_email_identity_mail_from_attributes.domain.mail_from_domain
+      type  = "TXT"
+      value = "v=spf1 include:amazonses.com ~all"
+    },
+  ]
+}
+
+output "ses_identity_arn" {
+  description = "ARN domain identity SES"
+  value       = aws_sesv2_email_identity.domain.arn
+}
+
+output "alerts_topic_arn" {
+  description = "ARN SNS-топика alerts"
+  value       = aws_sns_topic.alerts.arn
+}
