@@ -16,15 +16,129 @@
     "ru": "RU"
   },
   "hero": {
-    "title": "",
-    "subtitle": "",
-    "cta": ""
+    "eyebrow": "AI development team",
+    "title": "From idea to production: built, tested, deployed and maintained by AI",
+    "subtitle": "Describe your app in plain words. KRunAI’s AI team creates it, checks it, launches it in your own cloud and keeps it running. No technical knowledge needed.",
+    "cta": "Get started",
+    "secondaryCta": "See how it works"
   },
-  "howItWorks": { "title": "" },
-  "benefits": { "title": "" },
-  "examples": { "title": "" },
-  "faq": { "title": "" },
-  "contact": { "title": "" },
+  "howItWorks": {
+    "title": "How it works",
+    "intro": "Four steps from a rough idea to an app your customers can use.",
+    "steps": [
+      {
+        "title": "Create",
+        "text": "Tell our AI manager what you need. It writes a clear plan and builds the app."
+      },
+      {
+        "title": "Test",
+        "text": "Every feature is checked automatically before you see it, so bugs are caught early."
+      },
+      {
+        "title": "Deploy",
+        "text": "The finished app goes live in your own AWS account. You stay the owner."
+      },
+      {
+        "title": "Maintain",
+        "text": "We monitor, fix and improve the app after launch. Ask for changes any time."
+      }
+    ],
+    "process": {
+      "title": "What working with us looks like",
+      "steps": [
+        "You describe your idea in a chat with the AI manager.",
+        "You receive a technical specification and approve it.",
+        "The AI team develops and tests the app.",
+        "The app is launched in your cloud.",
+        "Support and improvements continue after launch."
+      ]
+    }
+  },
+  "benefits": {
+    "title": "Why KRunAI",
+    "intro": "Everything a customer expects from a development studio, without the waiting and the jargon.",
+    "items": [
+      {
+        "title": "Speed",
+        "text": "First working version in days, not months."
+      },
+      {
+        "title": "Any complexity",
+        "text": "From a simple landing page to a multi-service platform."
+      },
+      {
+        "title": "Automated testing",
+        "text": "Each change is tested automatically before release."
+      },
+      {
+        "title": "Your own AWS cloud",
+        "text": "The app runs in your account. No vendor lock-in, full control of data."
+      },
+      {
+        "title": "Plain language",
+        "text": "We explain everything without technical jargon, at any stage."
+      }
+    ]
+  },
+  "examples": {
+    "title": "What you can build",
+    "intro": "A few typical projects. If yours is not on the list, just ask.",
+    "items": [
+      {
+        "title": "Websites",
+        "text": "Company sites, landing pages and portfolios."
+      },
+      {
+        "title": "Online stores",
+        "text": "Catalogue, cart and order handling."
+      },
+      {
+        "title": "Internal services",
+        "text": "Tools that automate your team’s routine work."
+      },
+      {
+        "title": "Bots",
+        "text": "Chat bots for customer support and sales."
+      },
+      {
+        "title": "Dashboards",
+        "text": "Live reports on sales, operations or users."
+      }
+    ]
+  },
+  "faq": {
+    "title": "Frequently asked questions",
+    "items": [
+      {
+        "question": "Do I need technical knowledge?",
+        "answer": "No. You talk to the AI manager in plain language and get answers without jargon. You only decide what you want."
+      },
+      {
+        "question": "How long does it take?",
+        "answer": "A simple site can be ready in a few days. Complex products take longer; you get a timeline when you approve the specification."
+      },
+      {
+        "question": "Who owns the app and the code?",
+        "answer": "You do. The app runs in your own AWS account, and you hold the access and the data."
+      },
+      {
+        "question": "How do you make sure it works?",
+        "answer": "Automated tests run on every change. Nothing is released until the checks pass."
+      },
+      {
+        "question": "What happens after launch?",
+        "answer": "We monitor the app, fix problems and add new features on request."
+      },
+      {
+        "question": "How much does it cost?",
+        "answer": "The price depends on the scope. Send a request and we will reply with an estimate."
+      }
+    ]
+  },
+  "contact": {
+    "title": "Tell us about your idea",
+    "intro": "Leave a request and we will get back to you by email. Describe what you want in a few sentences."
+  },
   "form": {
     "name": "Name",
     "email": "Email",
@@ -39,11 +153,19 @@
     }
   },
   "footer": {
-    "copyright": "© KRunAI"
+    "copyright": "© KRunAI",
+    "rights": "© 2026 KRunAI. All rights reserved.",
+    "cta": "Leave a request"
   },
   "notFound": {
     "title": "Page not found",
     "description": "The page you are looking for does not exist.",
     "home": "Back to home"
+  },
+  "header": {
+    "skip": "Skip to content",
+    "menu": "Menu",
+    "mainNav": "Main navigation",
+    "cta": "Get started"
   }
 }
