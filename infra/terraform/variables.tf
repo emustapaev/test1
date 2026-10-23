@@ -38,10 +38,16 @@ locals {
   }
 }
 
-variable "lead_to_email" {
-  description = "Получатель заявок (в SES sandbox должен быть верифицирован)"
+variable "lead_recipient_email" {
+  description = "Получатель заявок (FR-1); в SES sandbox должен быть верифицирован"
   type        = string
-  default     = "ernazar.mustapaev@gmail.com"
+  default     = "gulmira@krunai.uz"
+}
+
+variable "lambda_package_path" {
+  description = "Путь к zip-бандлу Lambda заявок (npm run build -w apps/api)"
+  type        = string
+  default     = "../../apps/api/dist/lambda.zip"
 }
 
 variable "lead_from_email" {

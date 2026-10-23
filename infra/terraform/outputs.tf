@@ -45,7 +45,7 @@ output "dns_records" {
   ]
 }
 
-output "lead_api_endpoint" {
+output "api_endpoint" {
   description = "Базовый URL HTTP API заявок (прямой, в обход CloudFront)"
   value       = aws_apigatewayv2_api.lead.api_endpoint
 }
@@ -90,4 +90,9 @@ output "ses_identity_arn" {
 output "alerts_topic_arn" {
   description = "ARN SNS-топика alerts"
   value       = aws_sns_topic.alerts.arn
+}
+
+output "rate_limit_table_name" {
+  description = "Имя DynamoDB-таблицы rate limit"
+  value       = aws_dynamodb_table.rate_limit.name
 }
