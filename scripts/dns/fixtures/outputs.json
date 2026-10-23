@@ -1,0 +1,35 @@
+{
+  "acm_validation_records": {
+    "sensitive": false,
+    "type": ["tuple", [["object", {"name": "string", "type": "string", "value": "string"}]]],
+    "value": [
+      {"name": "_abc123.krunai.uz.", "type": "CNAME", "value": "_def456.acm-validations.aws."},
+      {"name": "_x1y2z3.www.krunai.uz.", "type": "CNAME", "value": "_w9v8u7.acm-validations.aws."}
+    ]
+  },
+  "dns_records": {
+    "sensitive": false,
+    "type": "dynamic",
+    "value": [
+      {"name": "krunai.uz.", "type": "ALIAS", "value": "d111111abcdef8.cloudfront.net"},
+      {"name": "www.krunai.uz.", "type": "CNAME", "value": "d111111abcdef8.cloudfront.net"}
+    ]
+  },
+  "ses_dkim_records": {
+    "sensitive": false,
+    "type": "dynamic",
+    "value": [
+      {"name": "tok1aaaaaaaaaaaaaaaaaaaaaaaaaaaa._domainkey.krunai.uz", "type": "CNAME", "value": "tok1aaaaaaaaaaaaaaaaaaaaaaaaaaaa.dkim.amazonses.com"},
+      {"name": "tok2bbbbbbbbbbbbbbbbbbbbbbbbbbbb._domainkey.krunai.uz", "type": "CNAME", "value": "tok2bbbbbbbbbbbbbbbbbbbbbbbbbbbb.dkim.amazonses.com"},
+      {"name": "tok3cccccccccccccccccccccccccccc._domainkey.krunai.uz", "type": "CNAME", "value": "tok3cccccccccccccccccccccccccccc.dkim.amazonses.com"}
+    ]
+  },
+  "ses_mail_from_records": {
+    "sensitive": false,
+    "type": "dynamic",
+    "value": [
+      {"name": "mail.krunai.uz", "type": "MX", "value": "10 feedback-smtp.eu-west-3.amazonses.com"},
+      {"name": "mail.krunai.uz", "type": "TXT", "value": "v=spf1 include:amazonses.com ~all"}
+    ]
+  }
+}
