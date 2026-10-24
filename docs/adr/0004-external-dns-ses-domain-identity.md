@@ -1,6 +1,6 @@
 # ADR 0004: Внешний DNS (ClouDNS), SES domain identity и двухэтапный деплой ACM
 
-Статус: принято
+Статус: Частично заменён ADR 0005/0006. Остаются в силе: внешний DNS в ClouDNS, SES domain identity, Easy DKIM, custom MAIL FROM, запись Zoho не меняются, fallback `canonical_host`. Заменено: ACM в us-east-1 и CloudFront, `enable_custom_domain` (теперь `enable_https`, ADR 0006), Lambda и `docs/dns-cloudns.md` как единственный канал передачи записей (теперь `handoff.json`), IAM Lambda (теперь task role сервиса api).
 
 ## Context
 ТЗ v3 (`docs/spec/v3-technical.md`, разделы 1–6): авторитативный DNS `krunai.uz` находится в ClouDNS, все DNS-изменения вносит клиент вручную. Почта домена работает в Zoho Mail, её записи MX, SPF (TXT на apex), DMARC (`_dmarc`) и DKIM Zoho менять нельзя. Заявки теперь уходят на `gulmira@krunai.uz` (ящик в Zoho), отправитель — `noreply@krunai.uz`. Terraform не может ждать DNS-валидации ACM, которую делает человек, поэтому полный `apply` за один проход невозможен. Часть вопросов ТЗ (раздел 6) открыта: ALIAS в тарифе ClouDNS, наличие DMARC, несколько получателей.

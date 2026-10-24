@@ -1,102 +1,113 @@
 # Архитектура krunai.uz
 
-Источники: `docs/spec/v1-technical.md` (базовое ТЗ), `docs/spec/v2-technical.md` (RU-локализация), `docs/spec/v3-technical.md` (внешний DNS ClouDNS, Zoho, SES domain identity). Решения зафиксированы в ADR: [0001](adr/0001-stack-and-repo-layout.md), [0002](adr/0002-i18n-static-locales.md), [0003](adr/0003-edge-locale-detection.md), [0004](adr/0004-external-dns-ses-domain-identity.md).
+Источники: `docs/spec/v4-technical.md` (актуальное ТЗ: golden path, деплой по контракту платформы), `docs/spec/v1-technical.md`–`v3-technical.md` (контент, i18n, DNS/SES), `docs/platform-contract.md` (обязательные правила деплоя). Решения зафиксированы в ADR: [0001](adr/0001-stack-and-repo-layout.md), [0002](adr/0002-i18n-static-locales.md), [0003](adr/0003-edge-locale-detection.md) (заменён), [0004](adr/0004-external-dns-ses-domain-identity.md) (частично заменён), [0005](adr/0005-ecs-fargate-golden-path.md), [0006](adr/0006-platform-deploy-and-handoff.md).
 
 ## 1. Обзор
 
-Статический двуязычный (EN/RU) одностраничный лендинг платформы KRunAI. Регион AWS — **eu-west-3 (Paris)**, ACM-сертификат для CloudFront — **us-east-1**. Runtime-сервера нет; единственная динамика — CloudFront Function на edge и один serverless-эндпоинт заявок. Lambda@Edge не используется.
+Двуязычный (EN/RU) одностраничный лендинг платформы KRunAI. Регион AWS — **eu-west-3 (Paris)**. Два сервиса ECS Fargate за одним Application Load Balancer: `web` (Next.js) и `api` (Python/FastAPI, приём заявок). Базы данных нет.
 
 ```mermaid
 flowchart LR
-    V[Посетитель] -->|HTTPS| CF[CloudFront<br/>krunai.uz, www.krunai.uz]
-    CF -->|viewer-request| FN[CloudFront Function<br/>locale-router]
-    CF -->|"/* (OAC)"| S3[(S3 private bucket<br/>eu-west-3)]
-    CF -->|"/api/*"| APIGW[API Gateway HTTP API]
-    APIGW --> L[Lambda Node.js 20 (TS)<br/>обработчик заявок]
-    L --> SES[Amazon SES<br/>eu-west-3, identity krunai.uz]
-    L --> DDB[(DynamoDB<br/>rate limit, TTL)]
-    L --> CW[CloudWatch Logs]
+    V[Посетитель] -->|HTTP 80 / HTTPS 443| ALB[ALB eu-west-3<br/>krunai.uz, www.krunai.uz]
+    ALB -->|"default /*"| WEB[ECS Fargate: web<br/>Next.js standalone :3000]
+    ALB -->|"/api/*"| API[ECS Fargate: api<br/>FastAPI + uvicorn :8000]
+    API --> SES[Amazon SES<br/>eu-west-3, identity krunai.uz]
+    WEB --> CW[CloudWatch Logs]
+    API --> CW
     SES -->|noreply@krunai.uz → gulmira@krunai.uz| M[Zoho Mail<br/>gulmira@krunai.uz]
-    DNS[ClouDNS<br/>вручную клиентом] -.CNAME/ALIAS.-> CF
+    ECR[ECR web, api] -.образы.-> WEB
+    ECR -.образы.-> API
+    DNS[ClouDNS<br/>вносит клиент] -.ALIAS/CNAME.-> ALB
     DNS -.DKIM, MAIL FROM.-> SES
-    ACM[ACM us-east-1] -.TLS.-> CF
+    ACM[ACM eu-west-3] -.TLS.-> ALB
 ```
 
 ## 2. Компоненты
 
 | Компонент | Назначение |
 |---|---|
-| `apps/web` | Next.js 14 App Router, TypeScript strict, Tailwind, `output: 'export'`, `trailingSlash: true`. Результат — `out/` с `en/index.html`, `ru/index.html`, `en/404/index.html`, `ru/404/index.html`. |
-| S3 (eu-west-3) | Приватный bucket со статикой, доступ только через CloudFront Origin Access Control (OAC). |
-| CloudFront | Один distribution: apex + `www` (неканонический хост → 301 на `canonical_host`, по умолчанию `krunai.uz`; fallback `www.krunai.uz`, ADR 0004), HTTP → HTTPS, TLS 1.2+, Response Headers Policy (HSTS, CSP, X-Frame-Options и др.), standard logs в S3. Default behavior → S3; `/api/*` → API Gateway. |
-| CloudFront Function `locale-router` | `infra/functions/`, runtime `cloudfront-js-2.0`, viewer-request на default behavior. Редирект по локали только для `/`; для прочих путей переписывание `/x/` → `/x/index.html`. См. ADR 0003. |
-| API Gateway HTTP API | `POST /api/lead`, CORS только `https://krunai.uz` и `https://www.krunai.uz`, throttling (burst 10, rate 5 rps). Контракт — `contracts/openapi.yaml` (тикет T2). |
-| Lambda заявок (`apps/api`) | Node.js 20 (TypeScript, бандл esbuild), reserved concurrency ≤ 5. Серверная валидация, honeypot (при заполнении — 200 без отправки), проверка `locale` по allow-list (`en`|`ru`, по умолчанию `en`), rate limit, отправка письма. Ошибки валидации возвращаются кодами. Логи JSON без полного текста сообщения, email маскируется, retention 30 дней. |
-| Amazon SES (eu-west-3) | Domain identity `krunai.uz` с Easy DKIM (3 CNAME) и custom MAIL FROM `mail.krunai.uz`; отправка с `noreply@krunai.uz` на `gulmira@krunai.uz` (Zoho), получатель из `LEAD_RECIPIENT_EMAIL`. SPF apex не меняется, DMARC выравнивается через DKIM (`d=krunai.uz`). Верификация адреса получателя не нужна. Письмо на английском, `Reply-To` = email посетителя, в теме тег `[RU]`/`[EN]`, в теле `Language: RU|EN`. |
-| DynamoDB | Таблица rate limit (`RATE_LIMIT_TABLE`), счётчики по ключу клиента с TTL. Это serverless-хранилище без постоянных вычислений; заявки в БД не хранятся. Параметры лимита — по `docs/spec/v1-technical.md` (FR-5: throttling и reserved concurrency); пороги по умолчанию: 5 заявок с IP за 600 с (env `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`); ключ `ip#<sha256(ip)>`, TTL в `expiresAt`. |
-| ACM / ClouDNS | Сертификат `krunai.uz` + `www.krunai.uz` в us-east-1 с DNS-валидацией. DNS остаётся в ClouDNS (hosted zone в AWS не создаётся): CNAME валидации, записи сайта, DKIM и MAIL FROM клиент добавляет вручную по outputs (раздел 5.1), инструкция — `docs/dns-cloudns.md`. Двухэтапный деплой: `enable_custom_domain=false` → клиент вносит записи → `enable_custom_domain=true` (подключение сертификата и aliases к CloudFront). Записи MX/SPF/DMARC/DKIM Zoho не изменяются (ADR 0004). |
-| CloudWatch | Логи Lambda и API GW, alarm на ошибки Lambda > 0 за 5 минут, alarm на bounce rate и complaint rate SES (SNS → `alarm_email`). |
-| Terraform (`infra/terraform`) | Terraform >= 1.6, AWS provider ~> 5; state в S3 + DynamoDB lock (eu-west-3). Функция locale-router управляется в IaC вместе с distribution. |
-| GitHub Actions (`.github/workflows`) | OIDC в AWS без долгоживущих ключей. Pipeline на push в `main`: lint → typecheck → проверка ключей i18n → build → тесты → S3 sync → CloudFront invalidation. |
+| `apps/web` | Next.js + TypeScript strict + Tailwind, `output: 'standalone'`, порт 3000. Локали `/en`, `/ru`. Middleware определяет локаль для `/` (раздел 3.1). |
+| `apps/api` | Python 3.12 + FastAPI + uvicorn, порт 8000. `GET /api/health`, `POST /api/lead`: валидация, honeypot, `locale` по allow-list (`en`\|`ru`, по умолчанию `en`), rate limit, отправка письма через SES. Логи JSON, email маскируется, содержимое сообщений не логируется. |
+| ALB | Один, listener 80 (и 443 при `enable_https=true`). `/api/*` → target group api (health `GET /api/health`), остальное → target group web (health `GET /`). Правила — раздел 3.5 и 8. SG: вход только 80/443. |
+| ECS Fargate | Один кластер, сервисы web и api: по 1 задаче 0.25 vCPU / 0.5 GB, автоскейлинг до 2. Публичные подсети без NAT, публичный IP у задач; SG задач — вход только от SG ALB (3000, 8000). |
+| ECR | Два репозитория (web, api); образы с тегом = SHA коммита. |
+| Amazon SES (eu-west-3) | Domain identity `krunai.uz`, Easy DKIM (3 CNAME), custom MAIL FROM `mail.krunai.uz`; From `noreply@krunai.uz`, To `gulmira@krunai.uz` (из `LEAD_RECIPIENT_EMAIL`), `Reply-To` = email посетителя, тег `[RU]`/`[EN]` в теме и `Language: RU\|EN` в теле. При sandbox — `ses_verify_recipient=true` верифицирует получателя. Task role api: только `ses:SendEmail` на identity `krunai.uz`. |
+| ACM (eu-west-3) | Сертификат `krunai.uz` + `www.krunai.uz` с DNS-валидацией; привязывается к ALB на этапе 2 (ADR 0006). |
+| ClouDNS | DNS остаётся у клиента (Route 53 не используется); записи вносятся по таблице от платформы (раздел 8.3). Записи Zoho (MX, SPF, DKIM zmail, DMARC) не изменяются и в outputs не входят (ADR 0004). |
+| CloudWatch | Log groups web и api, retention 30 дней; alarm на bounce/complaint rate SES (SNS → `alarm_email`, если задан). |
+| Terraform (`infra/terraform`) | Terraform >= 1.6, AWS provider ~> 5; state — S3 backend платформы, key `test1/terraform.tfstate`. |
+| GitHub Actions | `ci.yml` — сборка, линтеры, тесты, Docker-образы; `deploy.yml` — только по тегу `release-*` (раздел 8). |
 
-Сквозное: Node.js 20 LTS, npm workspaces, документация на русском.
+Сквозное: Node.js 20 LTS (web), Python 3.12 (api), документация на русском. Безопасность: HSTS, `X-Content-Type-Options`, `Referrer-Policy`, CSP — заголовки задаёт web (Next.js `headers()`); долгоживущих ключей AWS нет.
 
 ## 3. Потоки запросов
 
-### 3.1. `GET /` — редирект по локали
+### 3.1. `GET /` — редирект по локали (Next.js middleware)
 
 ```mermaid
 sequenceDiagram
     participant B as Браузер/бот
-    participant CF as CloudFront
-    participant FN as locale-router
-    B->>CF: GET /?utm_source=x
-    CF->>FN: viewer-request
-    alt cookie lang = en|ru
-        FN-->>B: 302 /{lang}/?utm_source=x, Cache-Control: no-store
+    participant A as ALB
+    participant W as web (middleware)
+    B->>A: GET /?utm_source=x
+    A->>W: forward
+    alt User-Agent начинается с ELB-HealthChecker
+        W-->>A: 200 (без редиректа)
+    else cookie lang = en|ru
+        W-->>B: 302 /{lang}/?utm_source=x, Cache-Control: no-store
     else Accept-Language, максимальный q среди поддерживаемых = ru
-        FN-->>B: 302 /ru/?utm_source=x, Cache-Control: no-store
+        W-->>B: 302 /ru/?utm_source=x, Cache-Control: no-store
     else иначе
-        FN-->>B: 302 /en/?utm_source=x, Cache-Control: no-store
+        W-->>B: 302 /en/?utm_source=x, Cache-Control: no-store
     end
 ```
 
-Порядок: cookie → `Accept-Language` с учётом q → `en`. Query string сохраняется. Cookie `lang=en|ru; Path=/; Max-Age=31536000; SameSite=Lax; Secure` ставит переключатель языка на клиенте. Функция не логирует персональные данные.
+Порядок: cookie → `Accept-Language` с учётом q → `en`. Query string сохраняется. Cookie `lang=en|ru; Path=/; Max-Age=31536000; SameSite=Lax; Secure` ставит переключатель языка. Боты обрабатываются так же (без клоакинга). Health-check ALB (`ELB-HealthChecker*`) получает 200 на `/` без редиректа (ADR 0005).
 
 ### 3.2. `GET /en/`, `GET /ru/` и прочие пути
 
-Редиректов нет: функция только переписывает URI `/x/` → `/x/index.html` (OAC + S3 не умеют index-документы в подкаталогах). `/en/` → `en/index.html`, `/ru/` → `ru/index.html`, 200 с `<html lang>` нужной локали. Прямые ссылки на локаль никогда не редиректятся. Кэширование — как в v1: HTML `no-cache`, ассеты с хэшем `max-age=31536000, immutable`.
+Редиректов нет: сервис web отдаёт страницу нужной локали (200, `<html lang>`). Хэшированные ассеты — `Cache-Control: public, max-age=31536000, immutable`, HTML — `no-cache`.
 
 ### 3.3. Неизвестный путь → 404
 
-S3 с OAC без `s3:ListBucket` возвращает 403 (иначе 404). Custom error response CloudFront для 403 и 404 отдаёт `/en/404/index.html` со статусом 404. Страница 404 определяет локаль по `location.pathname` (`/ru/...` → RU-текст, иначе EN). Для `/ru/...` без точного совпадения пользователь видит русский текст. Подробности и альтернативы — ADR 0002.
+Next.js отдаёт страницу 404 со статусом 404; локаль определяется по префиксу пути (`/ru/...` → RU-текст, иначе EN). См. ADR 0002.
 
 ### 3.4. `POST /api/lead`
 
 ```mermaid
 sequenceDiagram
     participant B as Браузер (/ru/)
-    participant CF as CloudFront
-    participant G as API Gateway
-    participant L as Lambda
-    participant D as DynamoDB
+    participant A as ALB
+    participant P as api (FastAPI)
     participant S as SES
-    B->>CF: POST /api/lead {name,email,message,website,locale}
-    CF->>G: behavior /api/*
-    G->>L: invoke
-    L->>L: валидация, locale allow-list, honeypot
-    L->>D: проверка и инкремент rate limit
-    L->>S: SendEmail ([RU] ..., Language: RU)
-    L-->>B: 200 | 400 коды ошибок | 429 | 500
+    B->>A: POST /api/lead {name,email,message,website,locale}
+    A->>P: правило /api/* (+ X-Forwarded-For)
+    P->>P: валидация, locale allow-list, honeypot
+    P->>P: rate limit в памяти (IP = правый элемент X-Forwarded-For)
+    P->>S: SendEmail ([RU] ..., Language: RU)
+    P-->>B: 200 | 400 коды ошибок | 429 | 500
 ```
 
-Фронтенд отображает локализованный текст по коду ошибки. Сбой SES → 500 `internal_error` и запись в лог (в ТЗ v1 был 502, контракт T2 использует 500).
+Фронтенд отображает локализованный текст по коду ошибки. Сбой SES → 500 `internal_error` и запись в лог. При `LEAD_EMAIL_DRY_RUN=true` SES не вызывается (тесты, e2e). Rate limit: 5 заявок в 60 с с IP; счётчик в памяти задачи, при 2 задачах лимит действует на задачу (ADR 0005). CORS: `ALLOWED_ORIGINS`.
 
-### 3.5. Контракт `POST /api/lead`
+### 3.5. Маршрутизация ALB
+
+| Условие | `enable_https=false` | `enable_https=true` |
+|---|---|---|
+| Listener 80 | forward: `/api/*` → api, default → web | 301 `https://krunai.uz:443#{path}?#{query}` |
+| Listener 443 | нет | ACM eu-west-3, `ELBSecurityPolicy-TLS13-1-2-2021-06`: host `www.krunai.uz` → 301 `https://krunai.uz`; `/api/*` → api; default → web |
+
+При `canonical_host = www.krunai.uz` (fallback без ALIAS) редирект инвертируется: apex → 301 на www; apex в ClouDNS — веб-редирект.
+
+### 3.6. `GET /api/health`
+
+`200 {"status":"ok"}`, используется health-check target group api.
+
+### 3.7. Контракт `POST /api/lead`
 
 Источник правды: [`contracts/openapi.yaml`](../contracts/openapi.yaml) (OpenAPI 3.1, линтер: `npx @redocly/cli lint contracts/openapi.yaml`).
 
-Тело запроса (JSON): `name` (1–100, обязательно), `email` (обязательно), `message` (10–2000, обязательно), `locale` (`en`|`ru`, необязательно, по умолчанию `en`), `website` (honeypot, должен быть пустым). Поле `phone` из ориентира тикета не добавлено: его нет в форме v1. Заполненный honeypot → `200 {"ok": true}` без отправки письма.
+Тело запроса (JSON): `name` (1–100, обязательно), `email` (обязательно), `message` (10–2000, обязательно), `locale` (`en`\|`ru`, необязательно, по умолчанию `en`), `website` (honeypot, должен быть пустым). Заполненный honeypot → `200 {"ok": true}` без отправки письма.
 
 Сервер не возвращает человекочитаемых текстов, только коды; фронтенд маппит их на локализованные строки.
 
@@ -108,80 +119,89 @@ sequenceDiagram
 | 429 | `{"error":"rate_limited"}` | Превышен rate limit |
 | 500 | `{"error":"internal_error"}` | Внутренний сбой, в т.ч. ошибка SES |
 
-Коды полей (`fields.<field>`):
-
-| Код | Значение |
-|-----|----------|
-| `required` | Поле отсутствует или пустое |
-| `invalid_format` | Неверный формат (например, email) |
-| `too_short` | Короче минимума (`message` < 10) |
-| `too_long` | Длиннее максимума |
-| `invalid_value` | Значение вне допустимого набора (`locale` вне allow-list) |
+Коды полей (`fields.<field>`): `required` (нет или пусто), `invalid_format` (например, email), `too_short` (`message` < 10), `too_long`, `invalid_value` (`locale` вне allow-list).
 
 ## 4. Структура репозитория
 
 ```
-apps/web/              Next.js (статический экспорт), messages/{en,ru}.json
-apps/api/              Lambda заявок (Node.js 20, TypeScript) + package.json-обёртка скриптов
-infra/functions/       CloudFront Function locale-router
-infra/terraform/       Terraform (S3, CloudFront, ACM, API GW, Lambda, SES, DynamoDB, IAM OIDC)
-contracts/openapi.yaml OpenAPI контракт POST /api/lead (тикет T2)
+apps/web/              Next.js (standalone), messages/{en,ru}.json, middleware, Dockerfile
+apps/api/              FastAPI (Python 3.12), тесты, Dockerfile
+infra/terraform/       Terraform: сеть, ALB, ECS, ECR, ACM, SES, IAM, CloudWatch, handoff
+contracts/openapi.yaml OpenAPI контракт (health, POST /api/lead)
 design/                бренд-материалы: логотип, палитра, OG-изображение
-e2e/                   Playwright E2E по статической сборке
-.github/workflows/     CI/CD
-docs/                  architecture.md, adr/, spec/
+e2e/                   Playwright E2E (api с LEAD_EMAIL_DRY_RUN=true)
+.github/workflows/     ci.yml (сборка/тесты/образы), deploy.yml (только тег release-*)
+docs/                  architecture.md, adr/, spec/, platform-contract.md, deploy.md
 ```
 
-Корневой `package.json`: workspaces `["apps/web","apps/api","e2e"]`; скрипты `lint`, `test`, `build` делегируют в workspaces (`--if-present`).
-
-Каталоги `infra/*`, `contracts`, `design`, `.github/workflows` — не npm-пакеты; в каркасе содержат `.gitkeep`, наполняются соответствующими тикетами.
+Корневой `package.json`: workspaces `["apps/web","e2e"]`; `apps/api` — Python-проект со своими зависимостями и тестами.
 
 ## 5. Переменные окружения
 
-| Переменная | Где | Значение |
+### 5.1. web
+
+| Переменная | Когда | Значение |
 |---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | фронт, build-time | `https://krunai.uz` (canonical, hreflang, sitemap, og:url) |
-| `NEXT_PUBLIC_LEAD_API_PATH` | фронт, build-time | `/api/lead` |
-| `LEAD_RECIPIENT_EMAIL` | Lambda | `gulmira@krunai.uz` (значение из переменной Terraform `lead_recipient_email`, из запроса не принимается) |
-| `LEAD_FROM_EMAIL` | Lambda | `noreply@krunai.uz` (адрес на SES domain identity `krunai.uz`) |
-| `RATE_LIMIT_TABLE` | Lambda | имя DynamoDB-таблицы rate limit |
-| `RATE_LIMIT_MAX` | Lambda | `5` |
-| `RATE_LIMIT_WINDOW_SECONDS` | Lambda | `600` |
-| `ALLOWED_ORIGIN` | Lambda | `https://krunai.uz,https://www.krunai.uz` (CORS также задан на уровне HTTP API) |
+| `PORT` | runtime | `3000` |
+| `HOSTNAME` | runtime | `0.0.0.0` |
+| `NEXT_PUBLIC_SITE_URL` | build-time | `https://krunai.uz` (canonical, hreflang, sitemap, og:url) |
+| `NEXT_PUBLIC_LEAD_API_PATH` | build-time | `/api/lead` |
 
-Секреты в репозитории не хранятся; AWS-доступ в CI — через OIDC.
+### 5.2. api
 
-### 5.1. Переменные и outputs Terraform
+| Переменная | Значение |
+|---|---|
+| `LEAD_RECIPIENT_EMAIL` | `gulmira@krunai.uz` (из Terraform `lead_recipient_email`, из запроса не принимается) |
+| `LEAD_FROM_EMAIL` | `noreply@krunai.uz` (из `lead_from_email`) |
+| `AWS_REGION` | `eu-west-3` |
+| `RATE_LIMIT_MAX` | `5` |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` |
+| `ALLOWED_ORIGINS` | `https://krunai.uz,https://www.krunai.uz` |
+| `LEAD_EMAIL_DRY_RUN` | `false`; `true` — SES не вызывается (тесты/e2e) |
+| `LOG_LEVEL` | `INFO` |
 
-| Переменная | Значение по умолчанию | Назначение |
+Секреты в репозитории не хранятся; AWS-доступ в CI — через OIDC-роль платформы.
+
+### 5.3. Переменные Terraform
+
+| Переменная | По умолчанию | Назначение |
 |---|---|---|
+| `project_name` | `krunai` | Префикс имён ресурсов |
+| `aws_region` | `eu-west-3` | Регион |
 | `domain_name` | `krunai.uz` | Домен сайта и SES identity |
-| `canonical_host` | `krunai.uz` (допустимо `krunai.uz` \| `www.krunai.uz`) | Канонический хост; `www.krunai.uz`, если в ClouDNS нет ALIAS |
-| `enable_custom_domain` | `false` | Этап 2: подключить ACM-сертификат и aliases к CloudFront |
+| `canonical_host` | `krunai.uz` (или `www.krunai.uz`) | Канонический хост; `www`, если в ClouDNS нет ALIAS |
+| `enable_https` | `false` | Этап 2: сертификат, listener 443, редиректы (`TF_VAR_enable_https` ← `KRUNAI_ENABLE_HTTPS`) |
+| `web_image` | без default | URI образа web (ECR, тег = SHA) |
+| `api_image` | без default | URI образа api |
 | `lead_recipient_email` | `gulmira@krunai.uz` | Источник `LEAD_RECIPIENT_EMAIL` |
 | `lead_from_email` | `noreply@krunai.uz` | Источник `LEAD_FROM_EMAIL` |
-| `ses_mail_from_subdomain` | `mail` | Поддомен custom MAIL FROM (`mail.krunai.uz`) |
-| `alarm_email` | без default | Получатель SNS-уведомлений алармов |
+| `ses_mail_from_subdomain` | `mail` | Поддомен custom MAIL FROM |
+| `ses_verify_recipient` | `true` | Верифицировать адрес получателя (SES sandbox) |
+| `alarm_email` | `''` | Получатель SNS-алармов; пусто — без подписки |
+| `permissions_boundary_arn` | без default | Граница прав для всех IAM-ролей (`TF_VAR_permissions_boundary_arn`) |
+
+### 5.4. Outputs Terraform
 
 | Output | Содержимое |
 |---|---|
-| `cloudfront_domain_name` | `<id>.cloudfront.net` |
-| `acm_validation_records` | список `{name,type,value}` для валидации сертификата |
-| `dns_records` | записи сайта (apex ALIAS/CNAME, www CNAME) |
+| `alb_dns_name`, `alb_zone_id` | Адрес ALB |
+| `acm_validation_records` | `[{name,type,value}]` для валидации сертификата |
 | `ses_dkim_records` | 3 CNAME `<token>._domainkey` → `<token>.dkim.amazonses.com` |
 | `ses_mail_from_records` | MX `mail` → `10 feedback-smtp.eu-west-3.amazonses.com`; TXT `mail` → `v=spf1 include:amazonses.com ~all` |
+| `ecr_web_repository_url`, `ecr_api_repository_url` | Репозитории ECR |
+| `ecs_cluster_name`, `ecs_web_service_name`, `ecs_api_service_name` | Для проверки стабилизации сервисов |
+| `site_url` | `http://<alb_dns_name>` при `enable_https=false`, иначе `https://krunai.uz` |
+| `dns_records` | `[{type,name,value,purpose}]` — все записи раздела 3 ТЗ v4 (ACM, ALIAS apex, CNAME www, 3 DKIM, MX и TXT `mail`) |
 
-Записи MX, SPF, DMARC и DKIM Zoho **не изменяются** и в outputs/таблицу не входят.
+Записи MX, SPF, DKIM zmail и DMARC Zoho **не изменяются** и в outputs не входят.
 
-### 5.2. Открытые вопросы ТЗ v3 и влияние на реализацию
+### 5.5. Открытые вопросы ТЗ и влияние на реализацию
 
 | Вопрос | Влияние |
 |---|---|
-| Есть ли ALIAS в тарифе ClouDNS | Нет → `canonical_host = "www.krunai.uz"`, apex редиректит на www в ClouDNS; синхронизировать `NEXT_PUBLIC_SITE_URL`, canonical/hreflang, sitemap |
-| Есть ли DMARC | Нет → в `docs/dns-cloudns.md` опциональная `_dmarc` `p=none`; есть → не трогаем |
-| Несколько получателей | Сейчас один адрес; расширение потребует изменения формата `LEAD_RECIPIENT_EMAIL` и кода `apps/api` (вне текущего объёма) |
-
-Подробности — [ADR 0004](adr/0004-external-dns-ses-domain-identity.md).
+| Есть ли ALIAS в тарифе ClouDNS | Нет → `canonical_host = "www.krunai.uz"`, apex — веб-редирект ClouDNS; синхронизировать `NEXT_PUBLIC_SITE_URL`, canonical/hreflang, sitemap |
+| SES в sandbox | Да → `ses_verify_recipient=true` и запрос на выход из sandbox в отчёте о выкатке |
+| Сохранять ли заявки | Сейчас нет (БД не используется, ADR 0005) |
 
 ## 6. i18n и SEO
 
@@ -195,29 +215,69 @@ docs/                  architecture.md, adr/, spec/
 Например, `uz`:
 
 1. Создать `apps/web/messages/uz.json` с тем же набором ключей, что в `en.json`.
-2. Добавить `uz` в список локалей `apps/web/src/i18n/config.ts` (и в маппинг `og:locale`, например `uz_UZ`). Страницы `/uz/`, `/uz/404/`, hreflang и sitemap генерируются из этого списка (`generateStaticParams`).
-3. Если локаль должна определяться автоматически — добавить её в список поддерживаемых в `infra/functions/locale-router` (ADR 0003) и в allow-list `locale` в `apps/api` и `contracts/openapi.yaml`.
+2. Добавить `uz` в `apps/web/src/i18n/config.ts` (и маппинг `og:locale`, например `uz_UZ`).
+3. Если локаль определяется автоматически — добавить её в список поддерживаемых в middleware `apps/web`, в allow-list `locale` в `apps/api` и `contracts/openapi.yaml`.
 4. Добавить локализованный текст 404 и обновить E2E.
-5. Прогнать `npm run lint && npm run build` (проверка ключей) и задеплоить.
+5. Прогнать линтеры и сборку (проверка ключей) и выкатить.
 
 Новая инфраструктура не требуется.
 
-## 8. Нефункциональные требования и ограничения
+## 8. Деплой
 
-- Только serverless/managed; новой runtime-инфраструктуры сверх CloudFront Function не добавляется.
-- Lighthouse (mobile) ≥ 90 по всем категориям в обеих локалях; нет overflow на 320/768/1440 px.
-- S3 не публичен; HSTS, CSP, TLS 1.2+.
-- Вне рамок: другие локали, CMS для переводов, локализованные письма владельцу, аналитика, БД лидов.
+Регламент — `docs/platform-contract.md`, решения — ADR 0006.
 
-## 9. Terraform: API заявок (T14)
+### 8.1. Процесс
 
-- `infra/terraform/lambda.tf` — Lambda `handler.handler` (Node 20, zip-бандл `var.lambda_package_path` = `apps/api/dist/lambda.zip`, собирается `npm run build -w apps/api`; reserved concurrency 5), IAM-роль (`ses:SendEmail` только на `ses_identity_arn` с условием `ses:FromAddress = lead_from_email`, `dynamodb:GetItem/UpdateItem` на таблицу, `logs:*` на свою группу), log group с retention 30 дней.
-- `infra/terraform/api.tf` — HTTP API с CORS (krunai.uz, www), маршруты `POST /api/lead` и `OPTIONS /api/lead`, throttling rate 5 / burst 10, access logs. `dynamodb.tf` — таблица rate limit (PK `pk`, TTL `expiresAt`). Alarm на ошибки Lambda — в `monitoring.tf` (→ SNS `alerts`).
-- `dynamodb.tf` — таблица rate limit (`pk` S, TTL `expiresAt`, on-demand).
-- `ses.tf` — domain identity `krunai.uz` (Easy DKIM) и email-identity получателя (для SES sandbox). DKIM-записи — output `ses_dkim_records`, добавляются вручную в ClouDNS.
-- `cloudfront.tf` — второй origin на HTTP API и ordered behavior `/api/*`: CachingDisabled, AllViewerExceptHostHeader, все методы (CloudFront допускает POST/OPTIONS только в полном наборе). `locale-router` привязан только к default behavior.
-- Перед `terraform plan` нужен `npm run build -w apps/api` (создаёт `apps/api/dist`).
+1. Клиент подключает AWS кнопкой «Подключить AWS» (/aws); платформа прописывает в репозиторий переменные Actions: `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `AWS_ACCOUNT_ID`, `AWS_PERMISSIONS_BOUNDARY_ARN`, `TF_STATE_BUCKET`, `TF_LOCK_TABLE`.
+2. CI на push/PR только собирает, линтит, тестирует и собирает Docker-образы; деплоя в AWS нет.
+3. После подтверждения клиентом («Выкатить», /deploy) платформа ставит тег `release-*`; запускается `deploy.yml` (единственный триггер — тег): сборка и тесты → Terraform (инфраструктура, ECR) → push образов web/api → `terraform apply` → ожидание стабильности ECS-сервисов → артефакт `client-handoff` (`handoff.json`).
+4. Платформа отправляет клиенту таблицу DNS, проверяет записи и выполняет `after_dns`.
 
-## Деплой
+State: S3 backend, key `test1/terraform.tfstate`, bucket/таблица блокировок/регион из `TF_STATE_BUCKET`/`TF_LOCK_TABLE`/`AWS_REGION`. Все IAM-роли с `permissions_boundary_arn`; имена без префикса `ai-team-`. `concurrency: {group: deploy, cancel-in-progress: false}`.
 
-GitHub Actions (`.github/workflows/deploy.yml`) деплоит из `main` через OIDC-роль (`infra/terraform/bootstrap`, без долгоживущих ключей): сборка → `terraform apply` → S3 sync (HTML `no-cache`, ассеты `immutable`) → инвалидация CloudFront → DNS-таблица в summary и артефакт `dns-table`. Двухэтапный запуск управляется `ENABLE_CUSTOM_DOMAIN`. Подробности: [deploy.md](deploy.md).
+```mermaid
+sequenceDiagram
+    participant C as Клиент
+    participant P as Платформа
+    participant G as GitHub Actions
+    participant AWS as AWS (eu-west-3)
+    C->>P: «Выкатить»
+    P->>G: тег release-*
+    G->>AWS: OIDC (ai-team-deploy), terraform apply, образы в ECR
+    G-->>P: артефакт client-handoff (handoff.json)
+    P-->>C: таблица DNS-записей (ClouDNS)
+    C->>P: записи добавлены
+    P->>G: KRUNAI_ENABLE_HTTPS=true, повторный деплой
+    G->>AWS: apply: listener 443, редиректы
+```
+
+### 8.2. Двухэтапный HTTPS
+
+| Этап | `enable_https` | `site_url` | Что работает |
+|---|---|---|---|
+| 1 | `false` | `http://<alb_dns_name>` | Сайт и `POST /api/lead` по HTTP на DNS-имени ALB |
+| 2 | `true` | `https://krunai.uz` | HTTPS, 301 с http:// и www на `https://krunai.uz` |
+
+### 8.3. `handoff.json`
+
+```json
+{
+  "zone": "krunai.uz",
+  "site_url": "http://<alb_dns_name>",
+  "dns_records": [{"type": "CNAME", "name": "<полное имя>", "value": "<значение>", "purpose": "<назначение>"}],
+  "after_dns": {"set_variables": {"KRUNAI_ENABLE_HTTPS": "true"}, "redeploy": true}
+}
+```
+
+`dns_records` = output `dns_records`: CNAME валидации ACM (1–2), ALIAS `krunai.uz` → `alb_dns_name`, CNAME `www` → `alb_dns_name`, 3 CNAME DKIM, MX `mail` (priority 10), TXT `mail`.
+
+## 9. Нефункциональные требования и ограничения
+
+- Безопасность: SG задач принимают трафик только от ALB, ALB — только 80/443; task role api — только `ses:SendEmail`; HSTS, CSP, TLS 1.3/1.2 политика.
+- Lighthouse (mobile) ≥ 90 в обеих локалях; нет overflow на 320/768/1440 px.
+- Логи 30 дней, без содержимого сообщений, email маскируется.
+- Вне рамок: другие локали, CMS, аналитика, хранение заявок.
+
+## 10. История: что заменено в v4
+
+До v4 использовалась схема S3 + CloudFront (Function `locale-router`) + API Gateway + Lambda + DynamoDB (rate limit), деплой из `main` через OIDC-роль `infra/terraform/bootstrap`, флаг `enable_custom_domain`. Всё это заменено ADR 0005 и 0006 (ADR 0003 — заменён, ADR 0004 — частично). Удаление старого кода, Terraform и workflows выполняют другие тикеты эпика v4.
