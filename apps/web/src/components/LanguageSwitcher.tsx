@@ -11,7 +11,9 @@ export function LanguageSwitcher({ currentLocale, labels }: { currentLocale: Loc
   function onClick(e: MouseEvent<HTMLAnchorElement>, locale: Locale) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    document.cookie = `lang=${locale}; Path=/; Max-Age=${MAX_AGE}; SameSite=Lax; Secure`;
+    // До DNS/HTTPS сайт открыт по HTTP на имени ALB: Secure-cookie там не сохранится.
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `lang=${locale}; Path=/; Max-Age=${MAX_AGE}; SameSite=Lax${secure}`;
     window.location.assign(`/${locale}/${window.location.search}${window.location.hash}`);
   }
 
