@@ -1,6 +1,14 @@
 # ADR 0006: Деплой по контракту платформы, двухэтапный HTTPS и handoff
 
-Статус: принято (заменяет деплой из ADR 0004 и прежний CI/CD из `main`)
+Статус: принято, изменён ADR 0007 (заменяет деплой из ADR 0004 и прежний CI/CD из `main`). Правила деплоя по тегу, роли, state и handoff действуют. **Изменено в v5:** двухэтапный HTTPS на ALB (`enable_https`, listener 443) заменён двухэтапным кастомным доменом для CloudFront (`enable_custom_domain`, `KRUNAI_ENABLE_CUSTOM_DOMAIN`); ECR/ECS/ALB-части — не применяются.
+
+## Изменения v5 (ADR 0007)
+- **Этап 1** (`enable_custom_domain=false`, `KRUNAI_ENABLE_CUSTOM_DOMAIN` не задана): S3, CloudFront на домене `*.cloudfront.net`, API Gateway, Lambda, SES identity, ACM-сертификат (us-east-1, ожидает DNS-валидации). `site_url = https://<cloudfront_domain_name>`.
+- **Этап 2** (`true`, после `after_dns`): `aws_acm_certificate_validation`, aliases `krunai.uz` и `www.krunai.uz` на distribution, сертификат привязан. `site_url = https://krunai.uz`.
+- **Порядок деплоя:** `terraform apply` → сборка web с `NEXT_PUBLIC_LEAD_API_URL` из output `api_endpoint` → sync в S3 → инвалидация CloudFront → `handoff.json`.
+- **Outputs:** `site_bucket_name`, `cloudfront_distribution_id`, `cloudfront_domain_name`, `api_endpoint`, `site_url`, `dns_records`.
+- **handoff `after_dns`:** `{"set_variables": {"KRUNAI_ENABLE_CUSTOM_DOMAIN": "true"}, "redeploy": true}`; `dns_records`: CNAME ACM-валидации, ALIAS `krunai.uz` → CloudFront, CNAME `www` → CloudFront, 3 DKIM CNAME, MX и TXT `mail`.
+- Далее в тексте ниже описан v4-вариант (ALB), оставленный как история.
 
 ## Context
 ТЗ v4 (§2, §3) и `docs/platform-contract.md`: доступ к AWS даёт платформа (стек `ai-team-access`, кнопка «Подключить AWS»), деплой — только по тегу `release-*` после подтверждения клиента («Выкатить»), роль деплоя, Terraform state и переменные Actions уже существуют. Клиент вносит DNS-записи в ClouDNS по таблице от бота; выкатка не ждёт DNS. Прежние `infra/terraform/bootstrap` (OIDC-роль оператора) и деплой из `main` противоречат контракту.
