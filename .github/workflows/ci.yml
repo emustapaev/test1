@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Lint
-        run: npm run lint -w apps/web -w apps/api
+        run: npm run lint -w apps/web
 
       - name: Typecheck
         run: npm run typecheck -w apps/web
@@ -36,14 +36,22 @@ jobs:
       - name: Check i18n keys
         run: npm run check:i18n -w apps/web
 
-      - name: Test API
-        run: npm test -w apps/api
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Lint and test API
+        working-directory: apps/api
+        run: |
+          pip install -e '.[dev]'
+          ruff check .
+          pytest
 
       - name: Build web
         run: npm run build -w apps/web
 
-      - name: Build API
-        run: npm run build -w apps/api
+      - name: Build API image
+        run: docker build apps/api
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium

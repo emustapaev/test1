@@ -1,0 +1,13 @@
+tests/
+test/
+src/
+scripts/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
+Dockerfile
+.dockerignore
