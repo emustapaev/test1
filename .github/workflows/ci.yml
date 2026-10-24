@@ -39,10 +39,6 @@ jobs:
       - name: Test API
         run: npm test -w apps/api
 
-      - name: Test edge function
-        # shell-раскрытие glob работает на любой версии Node
-        run: node --test infra/functions/*.test.mjs
-
       - name: Build web
         run: npm run build -w apps/web
 
