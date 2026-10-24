@@ -6,25 +6,11 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.4"
-    }
   }
 }
 
 provider "aws" {
-  region = "eu-west-3"
-
-  default_tags {
-    tags = local.tags
-  }
-}
-
-# CloudFront принимает ACM-сертификаты только из us-east-1
-provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
+  region = var.aws_region
 
   default_tags {
     tags = local.tags

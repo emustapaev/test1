@@ -1,58 +1,32 @@
-output "site_bucket_name" {
-  description = "Имя S3-бакета со статикой сайта"
-  value       = aws_s3_bucket.site.bucket
+output "alb_dns_name" {
+  description = "DNS-имя ALB (цель для ALIAS/CNAME в ClouDNS)"
+  value       = aws_lb.main.dns_name
 }
 
-output "cloudfront_distribution_id" {
-  description = "ID дистрибуции CloudFront (для инвалидации)"
-  value       = aws_cloudfront_distribution.site.id
-}
-
-output "cloudfront_domain_name" {
-  description = "Доменное имя дистрибуции *.cloudfront.net"
-  value       = aws_cloudfront_distribution.site.domain_name
-}
-
-output "cloudfront_distribution_arn" {
-  description = "ARN дистрибуции CloudFront"
-  value       = aws_cloudfront_distribution.site.arn
+output "alb_zone_id" {
+  description = "Hosted zone ID ALB"
+  value       = aws_lb.main.zone_id
 }
 
 output "acm_validation_records" {
-  description = "CNAME-записи для DNS-валидации ACM (FQDN); добавить вручную в ClouDNS на этапе 1"
+  description = "CNAME-записи для DNS-валидации ACM (без завершающей точки); добавить вручную в ClouDNS"
   value = [
     for o in aws_acm_certificate.site.domain_validation_options : {
-      name  = o.resource_record_name
+      name  = trimsuffix(o.resource_record_name, ".")
       type  = o.resource_record_type
-      value = o.resource_record_value
+      value = trimsuffix(o.resource_record_value, ".")
     }
   ]
 }
 
-output "dns_records" {
-  description = "Записи для ClouDNS: apex ALIAS и www CNAME на дистрибуцию CloudFront. Если ALIAS недоступен — fallback: канонический хост www.krunai.uz (canonical_host), apex — редирект/ANAME у регистратора"
-  value = [
-    {
-      name  = "${var.domain_name}."
-      type  = "ALIAS"
-      value = aws_cloudfront_distribution.site.domain_name
-    },
-    {
-      name  = "${local.www_domain_name}."
-      type  = "CNAME"
-      value = aws_cloudfront_distribution.site.domain_name
-    },
-  ]
+output "ecr_web_repository_url" {
+  description = "URL ECR-репозитория web"
+  value       = aws_ecr_repository.app["web"].repository_url
 }
 
-output "api_endpoint" {
-  description = "Базовый URL HTTP API заявок (прямой, в обход CloudFront)"
-  value       = aws_apigatewayv2_api.lead.api_endpoint
-}
-
-output "lead_lambda_name" {
-  description = "Имя Lambda-функции обработки заявок"
-  value       = aws_lambda_function.lead.function_name
+output "ecr_api_repository_url" {
+  description = "URL ECR-репозитория api"
+  value       = aws_ecr_repository.app["api"].repository_url
 }
 
 output "ses_dkim_records" {
@@ -90,9 +64,4 @@ output "ses_identity_arn" {
 output "alerts_topic_arn" {
   description = "ARN SNS-топика alerts"
   value       = aws_sns_topic.alerts.arn
-}
-
-output "rate_limit_table_name" {
-  description = "Имя DynamoDB-таблицы rate limit"
-  value       = aws_dynamodb_table.rate_limit.name
 }
