@@ -11,11 +11,33 @@ info:
     identifier: LicenseRef-Proprietary
 servers:
   - url: https://krunai.uz
-    description: Production (API proxied by CloudFront under /api/*)
+    description: Production (ALB routes /api/* to the FastAPI service)
 tags:
   - name: lead
     description: Lead form submission
+  - name: health
+    description: Service health check
 paths:
+  /api/health:
+    get:
+      tags: [health]
+      operationId: getHealth
+      security: []
+      summary: Health check of the api service
+      description: |
+        Used by the ALB target group of the api service. Always returns 200
+        while the process is able to serve requests.
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                ok:
+                  value:
+                    status: ok
   /api/lead:
     post:
       tags: [lead]
@@ -25,7 +47,10 @@ paths:
       description: |
         Validates the payload and sends a notification email. If the honeypot
         field `website` is non-empty, the server returns 200 and sends nothing
-        (silent success). Rate limiting and anti-spam rules are unchanged from v1.
+        (silent success). Rate limit: at most 5 submissions per minute per
+        client IP (the rightmost `X-Forwarded-For` entry, added by the ALB);
+        the counter is kept in memory of each task, so with two tasks the
+        limit applies per task. Exceeding it returns 429 `rate_limited`.
       requestBody:
         required: true
         content:
@@ -129,6 +154,13 @@ components:
           type: string
           description: Honeypot. Must be empty; real users never see it.
           default: ''
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
     OkResponse:
       type: object
       required: [ok]
