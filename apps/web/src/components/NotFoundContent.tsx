@@ -9,8 +9,7 @@ type Props = {
   texts: Record<Locale, Messages['notFound']>;
 };
 
-// CloudFront отдаёт один /en/404/ для всех путей (ADR 0002), поэтому
-// локаль уточняется по префиксу location.pathname; фолбэк — defaultLocale.
+// Локаль уточняется по префиксу location.pathname; фолбэк — defaultLocale.
 export default function NotFoundContent({ initialLocale, texts }: Props) {
   const [locale, setLocale] = useState<Locale>(initialLocale);
 

@@ -2,12 +2,13 @@
   "name": "@krunai/web",
   "private": true,
   "version": "0.0.0",
-  "description": "Next.js 14 (App Router, output: 'export'), статические локали /en/ и /ru/.",
+  "description": "Next.js 14 (App Router, output: 'standalone'), локали /en/ и /ru/, определение локали в middleware.",
   "scripts": {
     "dev": "next dev",
     "prebuild": "npm run check:i18n",
     "build": "next build",
     "lint": "npm run check:i18n && next lint",
+    "test": "node --test src/i18n/detectLocale.test.mjs",
     "typecheck": "tsc --noEmit",
     "check:i18n": "node scripts/check-i18n.mjs"
   },
