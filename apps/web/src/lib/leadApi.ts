@@ -1,6 +1,9 @@
 import type { Locale } from '@/i18n/config';
 
-export const LEAD_API_PATH = process.env.NEXT_PUBLIC_LEAD_API_PATH || '/api/lead';
+/** Полный URL POST /contact (API Gateway), задаётся при сборке. */
+export const LEAD_API_URL = process.env.NEXT_PUBLIC_LEAD_API_URL || '';
+
+export const MESSAGE_MAX_LENGTH = 5000;
 
 export const FIELD_NAMES = ['name', 'email', 'message'] as const;
 export type FieldName = (typeof FIELD_NAMES)[number];
@@ -12,7 +15,7 @@ export type LeadPayload = {
   name: string;
   email: string;
   message: string;
-  locale: Locale;
+  lang: Locale;
   website: string;
 };
 
@@ -33,15 +36,14 @@ export function validateLead(v: Pick<LeadPayload, FieldName>): Partial<Record<Fi
   if (!email) errors.email = 'required';
   else if (!EMAIL_RE.test(email)) errors.email = 'invalid_format';
   if (!message) errors.message = 'required';
-  else if (message.length < 10) errors.message = 'too_short';
-  else if (message.length > 2000) errors.message = 'too_long';
+  else if (message.length > MESSAGE_MAX_LENGTH) errors.message = 'too_long';
   return errors;
 }
 
 export async function submitLead(payload: LeadPayload): Promise<LeadResult> {
   let res: Response;
   try {
-    res = await fetch(LEAD_API_PATH, {
+    res = await fetch(LEAD_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -49,6 +51,8 @@ export async function submitLead(payload: LeadPayload): Promise<LeadResult> {
   } catch {
     return { ok: false, code: 'internal_error', fields: {} };
   }
+  // 429 формирует API Gateway: тело не гарантировано, ориентируемся на статус.
+  if (res.status === 429) return { ok: false, code: 'rate_limited', fields: {} };
   let data: { error?: unknown; fields?: unknown } | null = null;
   try {
     data = await res.json();

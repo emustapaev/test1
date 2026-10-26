@@ -155,7 +155,7 @@
       "message": {
         "label": "Message",
         "placeholder": "I need an online store for handmade soap…",
-        "hint": "From 10 to 2000 characters."
+        "hint": "Up to 5000 characters."
       },
       "website": {
         "label": "Website"

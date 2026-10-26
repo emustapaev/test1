@@ -48,7 +48,7 @@ export function LeadForm({ locale, messages }: { locale: Locale; messages: Messa
       name: values.name.trim(),
       email: values.email.trim(),
       message: values.message.trim(),
-      locale,
+      lang: locale,
       website: get('website'),
     });
     if (result.ok) {
