@@ -1,10 +1,10 @@
 name: E2E
 
-# Запускается после успешного деплоя (workflow «Deploy») и вручную.
+# E2E и Lighthouse идут против статического экспорта apps/web/out
+# (POST /contact мокается через page.route), прод не затрагивается.
 on:
-  workflow_run:
-    workflows: [Deploy]
-    types: [completed]
+  pull_request:
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -13,11 +13,10 @@ permissions:
 
 jobs:
   e2e:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
-      BASE_URL: https://krunai.uz
+      NEXT_PUBLIC_LEAD_API_URL: http://localhost:4010/contact
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,12 +24,17 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm run build -w apps/web
       - run: npx playwright install --with-deps chromium
         working-directory: e2e
-      - run: npx playwright test
-        working-directory: e2e
+      - run: npx playwright test -c e2e
+      - name: Lighthouse (Performance/Accessibility/SEO ≥ 90)
+        run: npx --yes @lhci/cli@0.14.x autorun --config=lighthouserc.json
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
-          path: e2e/playwright-report
+          name: e2e-reports
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            .lighthouseci
