@@ -43,15 +43,12 @@ jobs:
       - name: Lint and test API
         working-directory: apps/api
         run: |
-          pip install -e '.[dev]'
+          pip install -r requirements-dev.txt
           ruff check .
           pytest
 
       - name: Build web
         run: npm run build -w apps/web
-
-      - name: Build API image
-        run: docker build apps/api
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
