@@ -1,6 +1,6 @@
 # ADR 0005: ECS Fargate (web + api) за одним ALB — golden path
 
-Статус: принято (заменяет ADR 0003 и часть ADR 0004)
+Статус: Заменён ADR 0007 (serverless-архитектура v5: S3 + CloudFront + API Gateway + Lambda + SES; ECS Fargate и ALB не используются). Исторический документ.
 
 ## Context
 ТЗ v4 (`docs/spec/v4-technical.md`, разделы 1, 4, 5) заменяет схему S3 + CloudFront + Lambda на golden path платформы: ECS Fargate в eu-west-3, два сервиса (web, api) за одним Application Load Balancer, backend на Python/FastAPI. Статический экспорт Next.js (ADR 0001/0002) больше не нужен: web запускается как Node-сервис. Функциональные требования к контенту, i18n и форме заявки не меняются.
