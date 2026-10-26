@@ -37,20 +37,16 @@ jobs:
         run: npm ci
 
       - name: Lint
-        run: npm run lint -w apps/web -w apps/api
+        run: npm run lint -w apps/web
 
       - name: Test
         run: |
-          npm test -w apps/api
           node --test infra/functions/*.test.mjs scripts/dns/render-table.test.mjs
 
       - name: Build web
         env:
           NEXT_PUBLIC_SITE_URL: https://${{ vars.CANONICAL_HOST }}
         run: npm run build -w apps/web
-
-      - name: Build API bundle
-        run: npm run build -w apps/api
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
