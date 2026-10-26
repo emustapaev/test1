@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  web:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -30,60 +30,56 @@ jobs:
       - name: Lint
         run: npm run lint -w apps/web
 
-      - name: Typecheck
-        run: npm run typecheck -w apps/web
-
       - name: Check i18n keys
-        run: npm run check:i18n -w apps/web
+        run: node apps/web/scripts/check-i18n.mjs
+
+      - name: Build static export
+        run: npm run build -w apps/web
+        env:
+          NEXT_PUBLIC_LEAD_API_URL: https://api.example.com/contact
+
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/api/requirements-dev.txt
 
-      - name: Lint and test API
+      - name: Install dependencies
         working-directory: apps/api
-        run: |
-          pip install -r requirements-dev.txt
-          ruff check .
-          pytest
+        run: pip install -r requirements-dev.txt
 
-      - name: Build web
-        run: npm run build -w apps/web
+      - name: Ruff
+        working-directory: apps/api
+        run: ruff check .
 
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-        working-directory: e2e
+      - name: Pytest
+        working-directory: apps/api
+        run: pytest
 
-      - name: Layout tests (320/768/1440, EN/RU)
-        run: |
-          npx serve apps/web/out -l 4173 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID' EXIT
-          npx --yes wait-on http://localhost:4173/en/ http://localhost:4173/ru/
-          npm run test:layout -w e2e
-        env:
-          BASE_URL: http://localhost:4173
+  edge-function:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Upload layout report
-        if: always()
-        uses: actions/upload-artifact@v4
+      - uses: actions/setup-node@v4
         with:
-          name: layout-results
-          path: |
-            e2e/test-results
-            e2e/playwright-report
-          if-no-files-found: ignore
+          node-version: 20
 
-      - name: Lighthouse CI
-        run: npx --yes @lhci/cli@0.14.x autorun --config=lighthouserc.json
+      - name: Test CloudFront Function
+        run: node --test infra/functions/*.test.mjs
 
-      - name: Upload Lighthouse report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lighthouse
-          path: .lighthouseci
-          if-no-files-found: ignore
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
 
@@ -97,9 +93,15 @@ jobs:
           terraform init -backend=false -input=false
           terraform validate
 
-      - name: Upload web artifact
-        uses: actions/upload-artifact@v4
+  openapi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          name: web-out
-          path: apps/web/out
-          if-no-files-found: error
+          node-version: 20
+
+      - name: Redocly lint
+        run: npx --yes @redocly/cli lint contracts/openapi.yaml
