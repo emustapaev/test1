@@ -1,0 +1,15 @@
+{
+  "api_endpoint": {"sensitive": false, "type": "string", "value": "https://abc123.execute-api.eu-west-3.amazonaws.com"},
+  "site_url": {"sensitive": false, "type": "string", "value": "https://d111111abcdef8.cloudfront.net"},
+  "dns_records": {
+    "sensitive": false,
+    "type": "dynamic",
+    "value": [
+      {"type": "CNAME", "name": "_abc123.krunai.uz", "value": "_def456.acm-validations.aws", "purpose": "подтверждение SSL-сертификата"},
+      {"type": "ALIAS", "name": "krunai.uz", "value": "d111111abcdef8.cloudfront.net", "purpose": "основной домен сайта"},
+      {"type": "CNAME", "name": "www.krunai.uz", "value": "d111111abcdef8.cloudfront.net", "purpose": "адрес www"},
+      {"type": "MX", "name": "mail.krunai.uz", "value": "10 feedback-smtp.eu-west-3.amazonses.com", "purpose": "MAIL FROM"},
+      {"type": "TXT", "name": "mail.krunai.uz", "value": "v=spf1 include:amazonses.com ~all", "purpose": "SPF"}
+    ]
+  }
+}
