@@ -1,11 +1,16 @@
-output "alb_dns_name" {
-  description = "DNS-имя ALB (цель для ALIAS/CNAME в ClouDNS)"
-  value       = aws_lb.main.dns_name
+output "site_bucket_name" {
+  description = "Имя S3-бакета со статикой сайта"
+  value       = aws_s3_bucket.site.bucket
 }
 
-output "alb_zone_id" {
-  description = "Hosted zone ID ALB"
-  value       = aws_lb.main.zone_id
+output "cloudfront_distribution_id" {
+  description = "ID дистрибуции CloudFront (для инвалидации)"
+  value       = aws_cloudfront_distribution.site.id
+}
+
+output "cloudfront_domain_name" {
+  description = "Доменное имя дистрибуции *.cloudfront.net (цель ALIAS/CNAME)"
+  value       = aws_cloudfront_distribution.site.domain_name
 }
 
 output "acm_validation_records" {
@@ -17,16 +22,6 @@ output "acm_validation_records" {
       value = trimsuffix(o.resource_record_value, ".")
     }
   ]
-}
-
-output "ecr_web_repository_url" {
-  description = "URL ECR-репозитория web"
-  value       = aws_ecr_repository.app["web"].repository_url
-}
-
-output "ecr_api_repository_url" {
-  description = "URL ECR-репозитория api"
-  value       = aws_ecr_repository.app["api"].repository_url
 }
 
 output "ses_dkim_records" {
