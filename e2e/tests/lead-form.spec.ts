@@ -117,7 +117,11 @@ for (const locale of ['en', 'ru'] as const) {
       const calls = await mock(page, (route) => json(route, 200, { ok: true }));
       await page.goto(`/${locale}/`);
       const hp = page.locator('input[name="website"]');
-      await expect(hp).toBeHidden();
+      // Поле вынесено за экран (.hp), скрыто от AT и исключено из tab-порядка.
+      await expect(page.locator('.hp')).toHaveAttribute('aria-hidden', 'true');
+      await expect(hp).toHaveAttribute('tabindex', '-1');
+      const box = await hp.boundingBox();
+      expect(box === null || box.x + box.width < 0).toBe(true);
       await fillForm(page, locale);
       await hp.evaluate((el: HTMLInputElement) => {
         el.value = 'http://spam.example';
