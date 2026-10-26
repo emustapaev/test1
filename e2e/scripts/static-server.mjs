@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 
 const root = resolve(fileURLToPath(new URL('../../apps/web/out', import.meta.url)));
 const port = Number(process.env.PORT || 4173);
@@ -42,7 +43,21 @@ createServer(async (req, res) => {
   }
   try {
     const body = await readFile(file);
-    res.writeHead(status, { 'Content-Type': types[extname(file)] || 'application/octet-stream' });
+    const type = types[extname(file)] || 'application/octet-stream';
+    const headers = { 'Content-Type': type };
+    // Как CloudFront: сжатие текстовых ответов и долгий кэш для хешированных ассетов.
+    if (pathname.startsWith('/_next/static/')) {
+      headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+    }
+    const compressible = /^(text\/|application\/(json|xml)|image\/svg)|javascript/.test(type);
+    if (compressible && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+      headers['Content-Encoding'] = 'gzip';
+      headers.Vary = 'Accept-Encoding';
+      res.writeHead(status, headers);
+      res.end(gzipSync(body));
+      return;
+    }
+    res.writeHead(status, headers);
     res.end(body);
   } catch {
     res.writeHead(404).end('not found');
