@@ -123,6 +123,16 @@ jobs:
           DIST=$(jq -r '.cloudfront_distribution_id.value' "$RUNNER_TEMP/outputs.json")
           aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/*"
 
+      # Критерии приёмки ТЗ v5 (разд. 2): без отправки реальных писем
+      - name: Post-deploy smoke
+        run: |
+          export SITE_URL=$(jq -r '.site_url.value' "$RUNNER_TEMP/outputs.json")
+          export API_ENDPOINT=$(jq -r '.api_endpoint.value' "$RUNNER_TEMP/outputs.json")
+          export SITE_BUCKET=$(jq -r '.site_bucket_name.value' "$RUNNER_TEMP/outputs.json")
+          export CUSTOM_DOMAIN_ENABLED="${TF_VAR_enable_custom_domain}"
+          export AWS_REGION="${{ vars.AWS_REGION }}"
+          bash scripts/smoke/post-deploy.sh
+
       - name: Build handoff
         run: node scripts/deploy/build-handoff.mjs "$RUNNER_TEMP/outputs.json" handoff.json
 
