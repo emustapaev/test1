@@ -1,9 +1,9 @@
 name: Deploy
 
+# Только тег release-*: его ставит платформа после подтверждения клиента (docs/platform-contract.md)
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    tags: ["release-*"]
 
 # OIDC: долгоживущих AWS-ключей нет, роль берётся через AWS_DEPLOY_ROLE_ARN
 permissions:
@@ -15,59 +15,84 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  TF_VAR_enable_custom_domain: ${{ vars.ENABLE_CUSTOM_DOMAIN }}
-  TF_VAR_canonical_host: ${{ vars.CANONICAL_HOST }}
-  TF_VAR_alarm_email: ${{ vars.ALARM_EMAIL }}
+  TF_VAR_permissions_boundary_arn: ${{ vars.AWS_PERMISSIONS_BOUNDARY_ARN }}
+  TF_VAR_enable_custom_domain: ${{ vars.KRUNAI_ENABLE_CUSTOM_DOMAIN || 'false' }}
   TF_IN_AUTOMATION: "1"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version: 20
           cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/api/requirements-dev.txt
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
+      # Те же проверки, что в CI
+      - name: Lint web
         run: npm run lint -w apps/web
 
-      - name: Test
-        run: |
-          node --test infra/functions/*.test.mjs scripts/dns/render-table.test.mjs
+      - name: Check i18n keys
+        run: node apps/web/scripts/check-i18n.mjs
 
-      - name: Build web
-        env:
-          NEXT_PUBLIC_SITE_URL: https://${{ vars.CANONICAL_HOST }}
-        run: npm run build -w apps/web
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff
+        working-directory: apps/api
+        run: ruff check .
+
+      - name: Pytest
+        working-directory: apps/api
+        run: pytest
+
+      - name: Test CloudFront Function and deploy scripts
+        run: node --test infra/functions/*.test.mjs scripts/deploy/*.test.mjs
+
+      - name: Terraform fmt
+        working-directory: infra/terraform
+        run: terraform fmt -check -recursive
+
+      - name: OpenAPI lint
+        run: npx --yes @redocly/cli lint contracts/openapi.yaml
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_wrapper: false
-
       - name: Terraform init
         working-directory: infra/terraform
         run: |
           terraform init -input=false \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -backend-config="key=site/terraform.tfstate" \
-            -backend-config="region=${{ vars.AWS_REGION }}" \
             -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="key=test1/terraform.tfstate" \
             -backend-config="encrypt=true"
 
-      # Этап 1 (ENABLE_CUSTOM_DOMAIN=false): ожидания валидации ACM нет, apply завершается сразу.
+      - name: Terraform validate
+        working-directory: infra/terraform
+        run: terraform validate
+
+      # Этап 1 (KRUNAI_ENABLE_CUSTOM_DOMAIN=false): ожидания валидации ACM нет, apply завершается сразу.
       - name: Terraform apply
         working-directory: infra/terraform
         run: terraform apply -input=false -auto-approve
@@ -75,6 +100,12 @@ jobs:
       - name: Terraform outputs
         working-directory: infra/terraform
         run: terraform output -json > "$RUNNER_TEMP/outputs.json"
+
+      - name: Build web
+        run: |
+          API=$(jq -r '.api_endpoint.value' "$RUNNER_TEMP/outputs.json")
+          export NEXT_PUBLIC_LEAD_API_URL="${API}/contact"
+          npm run build -w apps/web
 
       - name: Sync site to S3
         run: |
@@ -92,24 +123,12 @@ jobs:
           DIST=$(jq -r '.cloudfront_distribution_id.value' "$RUNNER_TEMP/outputs.json")
           aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/*"
 
-      - name: Render DNS table
-        env:
-          CANONICAL_HOST: ${{ vars.CANONICAL_HOST }}
-        run: |
-          CANONICAL=apex
-          if [ "$CANONICAL_HOST" = "www.krunai.uz" ]; then CANONICAL=www; fi
-          mkdir -p dns-table
-          node scripts/dns/render-table.mjs "$RUNNER_TEMP/outputs.json" \
-            --baseline docs/dns/baseline.txt --canonical "$CANONICAL" > dns-table/dns-table.md
-          {
-            echo "## DNS-записи для клиента"
-            echo
-            cat dns-table/dns-table.md
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Build handoff
+        run: node scripts/deploy/build-handoff.mjs "$RUNNER_TEMP/outputs.json" handoff.json
 
-      - name: Upload DNS table
+      - name: Upload client-handoff
         uses: actions/upload-artifact@v4
         with:
-          name: dns-table
-          path: dns-table/dns-table.md
+          name: client-handoff
+          path: handoff.json
           if-no-files-found: error
