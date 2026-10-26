@@ -63,6 +63,24 @@ variable "alarm_email" {
   default     = ""
 }
 
+variable "api_throttle_rate" {
+  description = "Throttling stage API Gateway: запросов в секунду"
+  type        = number
+  default     = 5
+}
+
+variable "api_throttle_burst" {
+  description = "Throttling stage API Gateway: burst"
+  type        = number
+  default     = 10
+}
+
+variable "log_retention_days" {
+  description = "Срок хранения CloudWatch Logs, дней"
+  type        = number
+  default     = 30
+}
+
 variable "permissions_boundary_arn" {
   description = "ARN permissions boundary для IAM-ролей (TF_VAR_permissions_boundary_arn, выдаёт платформа)"
   type        = string
@@ -76,6 +94,9 @@ variable "environment" {
 
 locals {
   www_domain_name = "www.${var.domain_name}"
+  name_prefix     = "${var.project_name}-${var.environment}"
+  lambda_name     = "${local.name_prefix}-lead"
+  cloudfront_url  = "https://${aws_cloudfront_distribution.site.domain_name}"
 
   tags = {
     Project     = var.project_name
