@@ -17,7 +17,7 @@ variable "domain_name" {
 }
 
 variable "canonical_host" {
-  description = "Канонический хост, на который редиректит ALB (www.krunai.uz — fallback при отсутствии ALIAS в ClouDNS)"
+  description = "Канонический хост, на который редиректит CloudFront Function (www.krunai.uz — fallback при отсутствии ALIAS в ClouDNS)"
   type        = string
   default     = "krunai.uz"
 
@@ -25,22 +25,6 @@ variable "canonical_host" {
     condition     = contains(["krunai.uz", "www.krunai.uz"], var.canonical_host)
     error_message = "canonical_host должен быть krunai.uz или www.krunai.uz."
   }
-}
-
-variable "enable_https" {
-  description = "Этап 2: ждать валидацию ACM и создать listener 443 с редиректами. Этап 1 (false): только HTTP 80, деплой не ждёт DNS"
-  type        = bool
-  default     = false
-}
-
-variable "web_image" {
-  description = "Образ web (полный URI ECR с тегом)"
-  type        = string
-}
-
-variable "api_image" {
-  description = "Образ api (полный URI ECR с тегом)"
-  type        = string
 }
 
 variable "lead_recipient_email" {
@@ -53,6 +37,12 @@ variable "lead_from_email" {
   description = "Адрес отправителя писем (должен принадлежать domain identity)"
   type        = string
   default     = "noreply@krunai.uz"
+}
+
+variable "enable_custom_domain" {
+  description = "Этап 2: подключить ACM-сертификат и aliases krunai.uz/www к CloudFront (ждёт DNS-валидацию). Этап 1 (false): сайт на *.cloudfront.net"
+  type        = bool
+  default     = false
 }
 
 variable "ses_mail_from_subdomain" {

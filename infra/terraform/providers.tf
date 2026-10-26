@@ -16,3 +16,13 @@ provider "aws" {
     tags = local.tags
   }
 }
+
+# CloudFront принимает ACM-сертификаты только из us-east-1
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = local.tags
+  }
+}
