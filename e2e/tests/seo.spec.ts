@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const origin = (baseURL?: string) => new URL(baseURL!).origin;
 
 for (const lang of ['en', 'ru']) {
-  test(`8: /${lang}/ — hreflang и canonical`, async ({ page, baseURL }) => {
+  test(`/${lang}/ — hreflang и canonical`, async ({ page, baseURL }) => {
     await page.goto(`/${lang}/`);
     const href = (sel: string) => page.locator(sel).first().getAttribute('href');
     const en = await href('link[rel="alternate"][hreflang="en"]');
@@ -19,7 +19,7 @@ for (const lang of ['en', 'ru']) {
   });
 }
 
-test('8: sitemap.xml содержит оба URL', async ({ request }) => {
+test('sitemap.xml содержит оба URL', async ({ request }) => {
   const res = await request.get('/sitemap.xml');
   expect(res.status()).toBe(200);
   const xml = await res.text();

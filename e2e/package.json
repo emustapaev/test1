@@ -2,7 +2,7 @@
   "name": "@krunai/e2e",
   "private": true,
   "version": "0.0.0",
-  "description": "Playwright E2E по задеплоенному сайту (BASE_URL, по умолчанию https://krunai.uz).",
+  "description": "Playwright E2E против статического экспорта apps/web/out (POST /contact мокается).",
   "scripts": {
     "test": "playwright test",
     "test:layout": "playwright test tests/layout.spec.ts",
